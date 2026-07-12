@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- 与 Pinia global 持久化一致（key: koi-vue-global），首屏挂上主题色与 html.dark -->
+  <script>
+    (function () {
+      var CACHE_KEY = "koi-vue-global";
+      var DEFAULT_THEME = "#2992FF";
+      var DEFAULT_THEME_RGB = "41,146,255";
+
+      function expandShortHex(hex) {
+        if (/^#([0-9A-Fa-f]{3})$/.test(hex)) {
+          var s = hex.slice(1);
+          return "#" + s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+        }
+        return hex;
+      }
+
+      function hexToRgb(hex6) {
+        var h = hex6.slice(1);
+        return [
+          parseInt(h.slice(0, 2), 16),
+          parseInt(h.slice(2, 4), 16),
+          parseInt(h.slice(4, 6), 16)
+        ];
+      }
+
+      function hexToRgbCsv(hex6) {
+        return hexToRgb(hex6).join(",");
+      }
+
+      function mixColor(color1, color2, weight) {
+        var w = Math.max(0, Math.min(1, weight));
+        var c1 = hexToRgb(color1);
+        var c2 = hexToRgb(color2);
+        var r = Math.round(c1[0] * (1 - w) + c2[0] * w);
+        var g = Math.round(c1[1] * (1 - w) + c2[1] * w);
+        var b = Math.round(c1[2] * (1 - w) + c2[2] * w);
+        return "#" + [r, g, b].map(function (n) {
+          return n.toString(16).padStart(2, "0");
+        }).join("");
+      }
+
+      function getLightColor(color, level) {
+        return mixColor(color, "#ffffff", level * 0.1);
+      }
+
+      function getDarkColor(color, level) {
+        return mixColor(color, "#000000", level * 0.1);
+      }
+
+      function applyPrimaryColorVars(target, color, isDark) {
+        target.style.setProperty("--el-color-primary", color);
+        target.style.setProperty("--el-color-primary-rgb", hexToRgbCsv(color));
+        var i;
+        if (isDark) {
+          target.style.setProperty("--el-color-primary-dark-2", getLightColor(color, 2));
+          for (i = 1; i <= 9; i++) {
+            target.style.setProperty("--el-color-primary-light-" + i, getDarkColor(color, i));
+          }
+        } else {
+          target.style.setProperty("--el-color-primary-dark-2", getDarkColor(color, 2));
+          for (i = 1; i <= 9; i++) {
+            target.style.setProperty("--el-color-primary-light-" + i, getLightColor(color, i));
+          }
+        }
+      }
+
+      function applyBootTheme(data, safeTheme, safeThemeRgb) {
+        var html = document.documentElement;
+        var isDark = data && data.isDark === true;
+        html.style.setProperty("--loading-primary-color", safeTheme);
+        html.style.setProperty("--loading-text-color", safeTheme);
+        html.style.setProperty("--loading-primary-rgb", safeThemeRgb);
+        applyPrimaryColorVars(html, safeTheme, isDark);
+        if (isDark) {
+          html.classList.add("dark");
+          html.style.colorScheme = "dark";
+        }
+        var isHorizontal = data && data.layout === "horizontal";
+        if (data && !isDark && (data.headerInverted === true || (isHorizontal && data.asideInverted === true))) {
+          html.classList.add("header-inverted");
+        }
+        if (data && data.asideInverted === true && !isDark) {
+          html.classList.add("aside-inverted");
+        }
+        if (isHorizontal) {
+          html.classList.add("layout-horizontal");
+        }
+        if (data && data.isGrey === true) {
+          html.classList.add("grey-mode");
+        }
+        if (data && data.isWeak === true) {
+          html.classList.add("weak-mode");
+        }
+      }
+
+      try {
+        var raw = localStorage.getItem(CACHE_KEY);
+        var data = raw ? JSON.parse(raw) : null;
+        var themeColor = data && typeof data.themeColor === "string" ? data.themeColor.trim() : "";
+        var expanded = expandShortHex(themeColor);
+        var isValidHex = /^#([0-9A-Fa-f]{6})$/.test(expanded);
+        var safeTheme = isValidHex ? expanded : DEFAULT_THEME;
+        var safeThemeRgb = isValidHex ? hexToRgbCsv(safeTheme) : DEFAULT_THEME_RGB;
+        applyBootTheme(data, safeTheme, safeThemeRgb);
+      } catch (e) {
+        applyBootTheme(null, DEFAULT_THEME, DEFAULT_THEME_RGB);
+      }
+    })();
+  </script>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/public/vite.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>%VITE_WEB_TITLE%</title>
+  <!-- 加载第一步开始 -->
+  <style>
+    .loading-box {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #FFFFFF;
+      overflow: hidden;
+      z-index: 9999;
+    }
+
+    .loading-background {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 560px 420px at 85% 18%, rgba(var(--loading-primary-rgb, 41,146,255), 0.12), transparent 70%),
+        radial-gradient(460px circle at 20% 80%, rgba(var(--loading-primary-rgb, 41,146,255), 0.10), transparent 65%),
+        radial-gradient(320px circle at 52% 52%, rgba(var(--loading-primary-rgb, 41,146,255), 0.08), transparent 60%),
+        #F8F8F8;
+      z-index: 0;
+    }
+
+    html.dark .loading-background {
+      background:
+        radial-gradient(ellipse 560px 420px at 85% 18%, rgba(var(--loading-primary-rgb, 41,146,255), 0.14), transparent 70%),
+        radial-gradient(460px circle at 20% 80%, rgba(var(--loading-primary-rgb, 41,146,255), 0.12), transparent 65%),
+        radial-gradient(320px circle at 52% 52%, rgba(var(--loading-primary-rgb, 41,146,255), 0.10), transparent 60%),
+        #03020C;
+    }
+
+    .glass-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    html.dark .glass-overlay {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .loading-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .loading-element {
+      width: 48px;
+      height: 48px;
+      position: relative;
+    }
+
+    .loading-element:before {
+      content: '';
+      width: 48px;
+      height: 5px;
+      background: var(--loading-primary-color, #2992FF);
+      position: absolute;
+      top: 60px;
+      left: 0;
+      border-radius: 50%;
+      animation: loading-shadow 0.5s linear infinite;
+    }
+
+    html.dark .loading-element:before {
+      background: var(--loading-primary-color, #2992FF);
+      opacity: 0.45;
+    }
+
+    .loading-element:after {
+      content: '';
+      width: 100%;
+      height: 100%;
+      background: var(--loading-primary-color, #2992FF);
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 4px;
+      animation: loading-jump 0.5s linear infinite;
+    }
+
+    html.dark .loading-element:after {
+      background: var(--loading-primary-color, #2992FF);
+    }
+
+    @keyframes loading-jump {
+      15% {
+        border-bottom-right-radius: 3px;
+      }
+      25% {
+        transform: translateY(9px) rotate(22.5deg);
+      }
+      50% {
+        transform: translateY(18px) scale(1, .9) rotate(45deg);
+        border-bottom-right-radius: 40px;
+      }
+      75% {
+        transform: translateY(9px) rotate(67.5deg);
+      }
+      100% {
+        transform: translateY(0) rotate(90deg);
+      }
+    }
+
+    @keyframes loading-shadow {
+      0%, 100% {
+        transform: scale(1, 1);
+      }
+      50% {
+        transform: scale(1.2, 1);
+      }
+    }
+
+    .loading-text {
+      color: var(--loading-text-color, #2992FF);
+      font-size: 32px;
+      font-weight: 500;
+      text-align: center;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    html.dark .loading-text {
+      color: var(--loading-text-color, #2992FF);
+    }
+    
+    .loading-element + .loading-text {
+      margin-top: 70px; 
+    }
+  </style>
+  <!-- 加载第一步结束 -->
+</head>
+<body>
+  <div id="app">
+    <!-- 第二步开始 -->
+    <div class="loading-box">
+      <div class="loading-background"></div>
+      <div class="glass-overlay"></div>
+      <div class="loading-container">
+        <div class="loading-element"></div>
+        <p class="loading-text">%VITE_WEB_TITLE%</p>
+      </div>
+    </div>
+    <!-- 第二步结束 -->
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

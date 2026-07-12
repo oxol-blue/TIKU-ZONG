@@ -1,0 +1,30 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Go build output and coverage
+backend/bin/
+backend/tmp/
+backend/coverage.out
+backend/coverage.html
+
+# Logs and local data
+*.log
+*.sqlite
+*.sqlite3
+

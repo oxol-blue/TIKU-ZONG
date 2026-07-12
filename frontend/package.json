@@ -1,0 +1,77 @@
+{
+  "name": "koi-ui",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "author": {
+    "name": "YuXin",
+    "email": "1736306607@qq.com",
+    "url": "https://gitee.com/KoiKite/koi-ui"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "build:test": "vue-tsc && vite build --mode test",
+    "build:prod": "vue-tsc && vite build --mode production",
+    "type:check": "vue-tsc --noEmit --skipLibCheck",
+    "preview": "npm run build:dev && vite preview",
+    "release": "standard-version",
+    "commit": "git add -A && czg && git push"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@vueuse/core": "^14.3.0",
+    "animate.css": "^4.1.1",
+    "axios": "^1.17.0",
+    "crypto-js": "^4.2.0",
+    "driver.js": "^1.4.0",
+    "echarts": "^6.1.0",
+    "element-plus": "^2.14.1",
+    "js-cookie": "^3.0.8",
+    "mitt": "^3.0.1",
+    "nprogress": "^0.2.0",
+    "pinia": "^3.0.4",
+    "pinia-plugin-persistedstate": "^4.7.1",
+    "sortablejs": "^1.15.7",
+    "vue": "^3.5.35",
+    "vue-router": "^5.1.0",
+    "vue3-count-to": "^1.1.2"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/nprogress": "^0.2.3",
+    "@types/sm-crypto": "^0.3.4",
+    "@types/sortablejs": "^1.15.9",
+    "@unocss/reset": "^66.7.0",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "autoprefixer": "^10.5.0",
+    "cz-git": "^1.13.1",
+    "czg": "^1.13.1",
+    "postcss": "^8.5.15",
+    "postcss-html": "^1.8.1",
+    "postcss-scss": "^4.0.9",
+    "sass": "^1.100.0",
+    "sass-loader": "^17.0.0",
+    "sharp": "^0.34.5",
+    "svgo": "^4.0.1",
+    "typescript": "^6.0.3",
+    "unocss": "^66.7.0",
+    "vite": "^8.0.16",
+    "vite-plugin-compression": "^0.5.1",
+    "vite-plugin-image-optimizer": "^2.0.3",
+    "vite-plugin-mock": "^3.0.2",
+    "vite-plugin-svg-icons": "^2.0.1",
+    "vite-plugin-vue-setup-extend": "^0.4.0",
+    "vue-i18n": "^11.4.4",
+    "vue-tsc": "^3.3.3"
+  },
+  "commitizen": {
+    "path": "node_modules/cz-git"
+  },
+  "browserslist": [
+    "Chrome >= 87",
+    "Edge >= 88",
+    "Safari >= 14",
+    "Firefox >= 78"
+  ]
+}
