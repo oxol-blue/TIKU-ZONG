@@ -11,6 +11,7 @@ import (
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/captcha"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/config"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/database"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/feedback"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/httpapi"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/ocs"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/payment"
@@ -36,6 +37,7 @@ func main() {
 	var aiService *ai.Service
 	var ocsStore *ocs.Store
 	var paymentService *payment.Service
+	var feedbackService *feedback.Service
 	captchaStore := captcha.NewStore()
 	if db != nil {
 		authService = auth.NewService(auth.NewStore(db), cfg.JWTSecret, captchaStore)
@@ -45,8 +47,9 @@ func main() {
 		aiService = ai.NewService(ai.NewStore(db, cfg.EncryptionSecret))
 		ocsStore = ocs.NewStore(db)
 		paymentService = payment.NewService(payment.NewStore(db, cfg.EncryptionSecret), cfg.PublicBaseURL)
+		feedbackService = feedback.NewService(feedback.NewStore(db))
 	}
-	router := httpapi.NewRouter(cfg, authService, questionService, billingService, callLogger, aiService, ocsStore, paymentService)
+	router := httpapi.NewRouter(cfg, authService, questionService, billingService, callLogger, aiService, ocsStore, paymentService, feedbackService)
 
 	log.Printf("%s starting on %s", cfg.AppName, cfg.HTTPAddr)
 	if err := router.Run(cfg.HTTPAddr); err != nil {

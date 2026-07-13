@@ -51,6 +51,12 @@
       <div class="answer-label">答案</div>
       <div class="answer-text">{{ result.answer }}</div>
       <div v-if="result.sources?.length" class="sources">来源：{{ result.sources.join('、') }}</div>
+      <div class="feedback-row">
+        <span>答案是否有帮助？</span>
+        <el-button size="small" type="success" plain @click="feedback('correct')">正确</el-button>
+        <el-button size="small" type="danger" plain @click="feedback('incorrect')">错误</el-button>
+        <el-button size="small" plain @click="feedback('mismatch')">题目不匹配</el-button>
+      </div>
     </el-card>
   </div>
 </template>
@@ -58,7 +64,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { listMyPackages, searchQuestion, type PackageInstance, type QuestionSearchResult } from "@/api/tiku";
+import { listMyPackages, searchQuestion, submitFeedback, type PackageInstance, type QuestionSearchResult } from "@/api/tiku";
 
 const loading = ref(false);
 const result = ref<QuestionSearchResult>();
@@ -105,6 +111,12 @@ const reset = () => {
   result.value = undefined;
 };
 
+const feedback = async (feedbackType: string) => {
+  if (!result.value?.request_id) return;
+  await submitFeedback({ requestId: result.value.request_id, question: result.value.question, feedbackType });
+  ElMessage.success("感谢反馈");
+};
+
 onMounted(loadPackages);
 </script>
 
@@ -122,5 +134,6 @@ onMounted(loadPackages);
 .answer-label { margin-top: 20px; color: var(--el-text-color-secondary); font-size: 13px; }
 .answer-text { padding: 14px; margin-top: 8px; color: var(--el-color-success); background: var(--el-color-success-light-9); border-radius: 8px; font-size: 18px; font-weight: 700; white-space: pre-wrap; }
 .sources { margin-top: 14px; }
+.feedback-row { display: flex; align-items: center; gap: 8px; margin-top: 18px; color: var(--el-text-color-secondary); font-size: 13px; }
 @media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; gap: 0; } .result-tags { flex-wrap: wrap; } }
 </style>

@@ -67,7 +67,7 @@ func (h *Handler) Search(c *gin.Context) {
 				if isOCS == true {
 					c.JSON(http.StatusOK, gin.H{"code": 1, "q": query, "data": aiAnswer.Text})
 				} else {
-					c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{"question": query, "answer": aiAnswer.Text, "type": questionType, "is_ai": true, "search_time": time.Since(started).Microseconds(), "sources": []string{aiAnswer.Provider + "/" + aiAnswer.Model}}})
+					c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{"request_id": requestID, "question": query, "answer": aiAnswer.Text, "type": questionType, "is_ai": true, "search_time": time.Since(started).Microseconds(), "sources": []string{aiAnswer.Provider + "/" + aiAnswer.Model}}})
 				}
 				return
 			}
@@ -106,7 +106,7 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{
-		"question": question.Question, "answer": answer, "type": question.Type, "is_ai": false, "search_time": elapsed.Microseconds(), "sources": []string{question.Source},
+		"request_id": requestID, "question": question.Question, "answer": answer, "type": question.Type, "is_ai": false, "search_time": elapsed.Microseconds(), "sources": []string{question.Source},
 	}})
 }
 

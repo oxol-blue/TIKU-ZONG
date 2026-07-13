@@ -1,6 +1,7 @@
 import koi from "@/utils/axios.ts";
 
 export interface QuestionSearchResult {
+  request_id: string;
   question: string;
   answer: string;
   type: string;
@@ -60,6 +61,9 @@ export interface ApiKeyView {
 
 export const searchQuestion = (params: { q: string; type?: string; options?: string; package_id?: number }) =>
   koi.get<{ code: number; message: string; data: QuestionSearchResult }>("/api/v1/search", params);
+
+export const submitFeedback = (data: { requestId: string; question: string; feedbackType: string; comment?: string }) =>
+  koi.post<{ code: number; message: string }>("/api/v1/feedback", data);
 
 export const listPackages = () => koi.get<{ code: number; message: string; data: PackageItem[] }>("/api/v1/packages");
 

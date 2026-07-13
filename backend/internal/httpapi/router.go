@@ -9,21 +9,28 @@ import (
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/billing"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/calls"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/config"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/feedback"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/ocs"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/payment"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/questions"
 )
 
 // NewRouter builds the public HTTP router for the API service.
-func NewRouter(cfg config.Config, authService *auth.Service, questionService *questions.Service, billingService *billing.Service, callLogger *calls.Store, aiService *ai.Service, ocsStore *ocs.Store, paymentServices ...*payment.Service) *gin.Engine {
+func NewRouter(cfg config.Config, authService *auth.Service, questionService *questions.Service, billingService *billing.Service, callLogger *calls.Store, aiService *ai.Service, ocsStore *ocs.Store, services ...any) *gin.Engine {
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.New()
 	var paymentService *payment.Service
-	if len(paymentServices) > 0 {
-		paymentService = paymentServices[0]
+	var feedbackService *feedback.Service
+	for _, service := range services {
+		switch value := service.(type) {
+		case *payment.Service:
+			paymentService = value
+		case *feedback.Service:
+			feedbackService = value
+		}
 	}
 	_ = router.SetTrustedProxies(nil)
 	router.Use(gin.Logger(), gin.Recovery(), corsMiddleware())
@@ -80,6 +87,9 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	ocsRoutes.Use(authHandler.RequireBearerOrAPIKey())
 	ocsRoutes.GET("/config", ocsHandler.Config)
 	ocsRoutes.GET("/search", questionHandler.OCSSearch)
+	if feedbackService != nil {
+		protected.POST("/feedback", feedback.NewHandler(feedbackService).Create)
+	}
 	if paymentService != nil {
 		paymentHandler := payment.NewHandler(paymentService)
 		protected.POST("/orders", paymentHandler.CreateOrder)
