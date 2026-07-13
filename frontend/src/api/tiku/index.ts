@@ -364,6 +364,12 @@ export interface DashboardStats {
   successfulCalls: number;
   aiCallCount: number;
   ocsCallCount: number;
+  onlineSearchCount: number;
+  localHitCount: number;
+  ocsHitCount: number;
+  tokenCount: number;
+  packageConsumeCount: number;
+  errorRate: number;
   averageLatencyMs: number;
 }
 export const getDashboardStats = () =>

@@ -49,7 +49,11 @@
         <el-card shadow="hover"><div class="metric-value">¥{{ (dashboard.paidAmountCents / 100).toFixed(2) }}</div><div class="metric-label">已支付金额</div></el-card>
         <el-card shadow="hover"><div class="metric-value">{{ dashboard.callCount }}</div><div class="metric-label">API 调用</div></el-card>
         <el-card shadow="hover"><div class="metric-value">{{ successRate }}%</div><div class="metric-label">调用成功率</div></el-card>
-        <el-card shadow="hover"><div class="metric-value">{{ dashboard.aiCallCount }} / {{ dashboard.ocsCallCount }}</div><div class="metric-label">AI / OCS 调用</div></el-card>
+        <el-card shadow="hover"><div class="metric-value">{{ dashboard.onlineSearchCount }}</div><div class="metric-label">在线搜索</div></el-card>
+        <el-card shadow="hover"><div class="metric-value">{{ dashboard.localHitCount }} / {{ dashboard.ocsHitCount }} / {{ dashboard.aiCallCount }}</div><div class="metric-label">本地 / OCS / AI 命中</div></el-card>
+        <el-card shadow="hover"><div class="metric-value">{{ dashboard.tokenCount }}</div><div class="metric-label">AI Token 累计</div></el-card>
+        <el-card shadow="hover"><div class="metric-value">{{ dashboard.packageConsumeCount }}</div><div class="metric-label">套餐消耗额度</div></el-card>
+        <el-card shadow="hover"><div class="metric-value">{{ dashboard.errorRate.toFixed(1) }}%</div><div class="metric-label">调用错误率</div></el-card>
         <el-card shadow="hover"><div class="metric-value">{{ dashboard.averageLatencyMs.toFixed(2) }} ms</div><div class="metric-label">平均响应耗时</div></el-card>
       </div>
       <el-tabs v-model="activeTab">
@@ -383,7 +387,7 @@ import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, create
 import { QUESTION_TYPES } from "@/constants/question";
 
 const activeTab = ref("ocs");
-const dashboard = reactive<DashboardStats>({ userCount: 0, paidUserCount: 0, paidOrderCount: 0, paidAmountCents: 0, callCount: 0, successfulCalls: 0, aiCallCount: 0, ocsCallCount: 0, averageLatencyMs: 0 });
+const dashboard = reactive<DashboardStats>({ userCount: 0, paidUserCount: 0, paidOrderCount: 0, paidAmountCents: 0, callCount: 0, successfulCalls: 0, aiCallCount: 0, ocsCallCount: 0, onlineSearchCount: 0, localHitCount: 0, ocsHitCount: 0, tokenCount: 0, packageConsumeCount: 0, errorRate: 0, averageLatencyMs: 0 });
 const successRate = computed(() => dashboard.callCount ? ((dashboard.successfulCalls / dashboard.callCount) * 100).toFixed(1) : "0.0");
 const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
 const saving = ref(false);

@@ -57,7 +57,7 @@ GET /api/ocs/search?key=API_KEY&q=题目
 
 ### 管理统计
 
-`GET /api/v1/admin/dashboard`（管理员）返回用户数、付费用户数、已支付订单/金额、API 调用量、成功调用量、AI/OCS 调用量和平均响应耗时。
+`GET /api/v1/admin/dashboard`（管理员）返回用户数、付费用户数、已支付订单/金额、API 调用量、在线搜索量、成功调用量、本地/OCS/AI 命中量、AI Token 累计、套餐消耗额度、错误率和平均响应耗时。新写入的调用日志带有 `sourceKind`（`local`、`ocs`、`ai`）以支持该统计。
 
 退款管理页使用 `GET /api/v1/admin/orders/{orderNo}/refunds` 查看退款记录，并在退款提交 JSON 中传递唯一 `refundNo`。
 

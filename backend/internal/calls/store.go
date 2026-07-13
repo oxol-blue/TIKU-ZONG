@@ -17,6 +17,7 @@ type Log struct {
 	Question   string
 	Success    bool
 	IsAI       bool
+	SourceKind string
 	Elapsed    time.Duration
 	HTTPStatus int
 	ErrorCode  string
@@ -58,15 +59,21 @@ type SearchHistoryPage struct {
 type Store struct{ db *sql.DB }
 
 type Dashboard struct {
-	UserCount        int64   `json:"userCount"`
-	PaidUserCount    int64   `json:"paidUserCount"`
-	PaidOrderCount   int64   `json:"paidOrderCount"`
-	PaidAmountCents  int64   `json:"paidAmountCents"`
-	CallCount        int64   `json:"callCount"`
-	SuccessfulCalls  int64   `json:"successfulCalls"`
-	AICallCount      int64   `json:"aiCallCount"`
-	OCSCallCount     int64   `json:"ocsCallCount"`
-	AverageLatencyMs float64 `json:"averageLatencyMs"`
+	UserCount           int64   `json:"userCount"`
+	PaidUserCount       int64   `json:"paidUserCount"`
+	PaidOrderCount      int64   `json:"paidOrderCount"`
+	PaidAmountCents     int64   `json:"paidAmountCents"`
+	CallCount           int64   `json:"callCount"`
+	SuccessfulCalls     int64   `json:"successfulCalls"`
+	AICallCount         int64   `json:"aiCallCount"`
+	OCSCallCount        int64   `json:"ocsCallCount"`
+	OnlineSearchCount   int64   `json:"onlineSearchCount"`
+	LocalHitCount       int64   `json:"localHitCount"`
+	OCSHitCount         int64   `json:"ocsHitCount"`
+	TokenCount          int64   `json:"tokenCount"`
+	PackageConsumeCount int64   `json:"packageConsumeCount"`
+	ErrorRate           float64 `json:"errorRate"`
+	AverageLatencyMs    float64 `json:"averageLatencyMs"`
 }
 
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
@@ -81,8 +88,8 @@ func (s *Store) Log(ctx context.Context, item Log) error {
 	if item.APIKeyID != 0 {
 		keyID = item.APIKeyID
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO api_call_logs (request_id, user_id, api_key_id, endpoint, question_hash, success, is_ai, elapsed_micros, http_status, error_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		item.RequestID, userID, keyID, item.Endpoint, hex.EncodeToString(digest[:]), boolInt(item.Success), boolInt(item.IsAI), item.Elapsed.Microseconds(), item.HTTPStatus, item.ErrorCode)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO api_call_logs (request_id, user_id, api_key_id, endpoint, question_hash, success, is_ai, source_kind, elapsed_micros, http_status, error_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		item.RequestID, userID, keyID, item.Endpoint, hex.EncodeToString(digest[:]), boolInt(item.Success), boolInt(item.IsAI), item.SourceKind, item.Elapsed.Microseconds(), item.HTTPStatus, item.ErrorCode)
 	if err != nil {
 		return fmt.Errorf("write api call log: %w", err)
 	}
@@ -139,21 +146,21 @@ func (s *Store) Recent(ctx context.Context, limit int) ([]map[string]any, error)
 	if limit < 1 || limit > 100 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT request_id, user_id, api_key_id, endpoint, question_hash, success, is_ai, elapsed_micros, http_status, error_code, created_at FROM api_call_logs ORDER BY id DESC LIMIT ?`, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT request_id, user_id, api_key_id, endpoint, question_hash, success, is_ai, source_kind, elapsed_micros, http_status, error_code, created_at FROM api_call_logs ORDER BY id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := make([]map[string]any, 0)
 	for rows.Next() {
-		var requestID, endpoint, questionHash, errorCode string
+		var requestID, endpoint, questionHash, sourceKind, errorCode string
 		var userID, keyID, elapsed sql.NullInt64
 		var success, isAI, status int
 		var createdAt time.Time
-		if err := rows.Scan(&requestID, &userID, &keyID, &endpoint, &questionHash, &success, &isAI, &elapsed, &status, &errorCode, &createdAt); err != nil {
+		if err := rows.Scan(&requestID, &userID, &keyID, &endpoint, &questionHash, &success, &isAI, &sourceKind, &elapsed, &status, &errorCode, &createdAt); err != nil {
 			return nil, err
 		}
-		items = append(items, map[string]any{"requestId": requestID, "userId": nullableInt(userID), "apiKeyId": nullableInt(keyID), "endpoint": endpoint, "questionHash": questionHash, "success": success == 1, "isAi": isAI == 1, "elapsedMicros": elapsed.Int64, "httpStatus": status, "errorCode": errorCode, "createdAt": createdAt})
+		items = append(items, map[string]any{"requestId": requestID, "userId": nullableInt(userID), "apiKeyId": nullableInt(keyID), "endpoint": endpoint, "questionHash": questionHash, "success": success == 1, "isAi": isAI == 1, "sourceKind": sourceKind, "elapsedMicros": elapsed.Int64, "httpStatus": status, "errorCode": errorCode, "createdAt": createdAt})
 	}
 	return items, rows.Err()
 }
@@ -162,21 +169,21 @@ func (s *Store) RecentByUser(ctx context.Context, userID uint64, limit int) ([]m
 	if limit < 1 || limit > 100 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT request_id, endpoint, question_hash, success, is_ai, elapsed_micros, http_status, error_code, created_at FROM api_call_logs WHERE user_id = ? ORDER BY id DESC LIMIT ?`, userID, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT request_id, endpoint, question_hash, success, is_ai, source_kind, elapsed_micros, http_status, error_code, created_at FROM api_call_logs WHERE user_id = ? ORDER BY id DESC LIMIT ?`, userID, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := make([]map[string]any, 0)
 	for rows.Next() {
-		var requestID, endpoint, questionHash, errorCode string
+		var requestID, endpoint, questionHash, sourceKind, errorCode string
 		var elapsed sql.NullInt64
 		var success, isAI, status int
 		var createdAt time.Time
-		if err := rows.Scan(&requestID, &endpoint, &questionHash, &success, &isAI, &elapsed, &status, &errorCode, &createdAt); err != nil {
+		if err := rows.Scan(&requestID, &endpoint, &questionHash, &success, &isAI, &sourceKind, &elapsed, &status, &errorCode, &createdAt); err != nil {
 			return nil, err
 		}
-		items = append(items, map[string]any{"requestId": requestID, "endpoint": endpoint, "questionHash": questionHash, "success": success == 1, "isAi": isAI == 1, "elapsedMicros": elapsed.Int64, "httpStatus": status, "errorCode": errorCode, "createdAt": createdAt})
+		items = append(items, map[string]any{"requestId": requestID, "endpoint": endpoint, "questionHash": questionHash, "success": success == 1, "isAi": isAI == 1, "sourceKind": sourceKind, "elapsedMicros": elapsed.Int64, "httpStatus": status, "errorCode": errorCode, "createdAt": createdAt})
 	}
 	return items, rows.Err()
 }
@@ -195,6 +202,11 @@ func (s *Store) Dashboard(ctx context.Context) (Dashboard, error) {
 		{&result.SuccessfulCalls, `SELECT COUNT(*) FROM api_call_logs WHERE success = 1`},
 		{&result.AICallCount, `SELECT COUNT(*) FROM api_call_logs WHERE is_ai = 1`},
 		{&result.OCSCallCount, `SELECT COUNT(*) FROM api_call_logs WHERE endpoint = '/api/ocs/search'`},
+		{&result.OnlineSearchCount, `SELECT COUNT(*) FROM api_call_logs WHERE endpoint = '/api/v1/search' AND api_key_id IS NULL`},
+		{&result.LocalHitCount, `SELECT COUNT(*) FROM api_call_logs WHERE success = 1 AND source_kind = 'local'`},
+		{&result.OCSHitCount, `SELECT COUNT(*) FROM api_call_logs WHERE success = 1 AND source_kind = 'ocs'`},
+		{&result.TokenCount, `SELECT COALESCE(SUM(token_count), 0) FROM question_ai`},
+		{&result.PackageConsumeCount, `SELECT COALESCE(SUM(amount), 0) FROM package_consumptions`},
 	}
 	for _, item := range queries {
 		if err := s.db.QueryRowContext(ctx, item.query).Scan(item.destination); err != nil {
@@ -207,6 +219,9 @@ func (s *Store) Dashboard(ctx context.Context) (Dashboard, error) {
 	}
 	if averageMicros.Valid {
 		result.AverageLatencyMs = averageMicros.Float64 / 1000
+	}
+	if result.CallCount > 0 {
+		result.ErrorRate = float64(result.CallCount-result.SuccessfulCalls) * 100 / float64(result.CallCount)
 	}
 	return result, nil
 }

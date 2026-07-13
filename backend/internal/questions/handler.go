@@ -46,7 +46,7 @@ func (h *Handler) Search(c *gin.Context) {
 	}
 	started := time.Now()
 	if query == "" || h.service == nil {
-		h.log(c, requestID, current.ID, keyID, query, false, http.StatusBadRequest, "INVALID_QUERY", started)
+		h.log(c, requestID, current.ID, keyID, query, false, "", http.StatusBadRequest, "INVALID_QUERY", started)
 		if isOCS == true {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "q is required"})
 		} else {
@@ -63,12 +63,12 @@ func (h *Handler) Search(c *gin.Context) {
 				if h.billing != nil {
 					packageID, _ := strconv.ParseUint(c.Query("package_id"), 10, 64)
 					if _, consumeErr := h.billing.Consume(c.Request.Context(), current.ID, packageID, billing.UsageQuestions, requestID, "/api/v1/search", 1); consumeErr != nil {
-						h.log(c, requestID, current.ID, keyID, query, false, http.StatusPaymentRequired, "NO_QUOTA", started)
+						h.log(c, requestID, current.ID, keyID, query, false, "", http.StatusPaymentRequired, "NO_QUOTA", started)
 						c.JSON(http.StatusPaymentRequired, gin.H{"code": "NO_QUOTA", "message": "an available package is required"})
 						return
 					}
 				}
-				h.log(c, requestID, current.ID, keyID, query, true, http.StatusOK, "", started)
+				h.log(c, requestID, current.ID, keyID, query, true, "ocs", http.StatusOK, "", started)
 				h.recordSearch(c, current.ID, requestID, external.Question, questionType, external.Answer, external.Source, false, started)
 				if isOCS == true {
 					c.JSON(http.StatusOK, gin.H{"code": 1, "q": external.Question, "data": external.Answer})
@@ -83,7 +83,7 @@ func (h *Handler) Search(c *gin.Context) {
 			if h.billing != nil {
 				available, quotaErr := h.billing.HasAIQuota(c.Request.Context(), current.ID, packageID)
 				if quotaErr != nil || !available {
-					h.log(c, requestID, current.ID, keyID, query, false, http.StatusPaymentRequired, "NO_AI_QUOTA", started)
+					h.log(c, requestID, current.ID, keyID, query, false, "", http.StatusPaymentRequired, "NO_AI_QUOTA", started)
 					c.JSON(http.StatusPaymentRequired, gin.H{"code": "NO_AI_QUOTA", "message": "an available AI package quota is required"})
 					return
 				}
@@ -92,7 +92,7 @@ func (h *Handler) Search(c *gin.Context) {
 			if aiErr == nil {
 				if h.billing != nil {
 					if _, consumeErr := h.billing.Consume(c.Request.Context(), current.ID, packageID, billing.UsageAI, requestID, "/api/v1/search", aiAnswer.ChargeCount); consumeErr != nil {
-						h.log(c, requestID, current.ID, keyID, query, false, http.StatusPaymentRequired, "NO_AI_QUOTA", started)
+						h.log(c, requestID, current.ID, keyID, query, false, "", http.StatusPaymentRequired, "NO_AI_QUOTA", started)
 						c.JSON(http.StatusPaymentRequired, gin.H{"code": "NO_AI_QUOTA", "message": "an available AI package quota is required"})
 						return
 					}
@@ -107,7 +107,7 @@ func (h *Handler) Search(c *gin.Context) {
 				return
 			}
 		}
-		h.log(c, requestID, current.ID, keyID, query, false, http.StatusNotFound, "QUESTION_NOT_FOUND", started)
+		h.log(c, requestID, current.ID, keyID, query, false, "", http.StatusNotFound, "QUESTION_NOT_FOUND", started)
 		if isOCS == true {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "question not found"})
 		} else {
@@ -116,14 +116,14 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		h.log(c, requestID, current.ID, keyID, query, false, http.StatusInternalServerError, "INTERNAL_ERROR", started)
+		h.log(c, requestID, current.ID, keyID, query, false, "", http.StatusInternalServerError, "INTERNAL_ERROR", started)
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "question search failed"})
 		return
 	}
 	if h.billing != nil {
 		packageID, _ := strconv.ParseUint(c.Query("package_id"), 10, 64)
 		if _, err := h.billing.Consume(c.Request.Context(), current.ID, packageID, billing.UsageQuestions, requestID, "/api/v1/search", 1); err != nil {
-			h.log(c, requestID, current.ID, keyID, query, false, http.StatusPaymentRequired, "NO_QUOTA", started)
+			h.log(c, requestID, current.ID, keyID, query, false, "", http.StatusPaymentRequired, "NO_QUOTA", started)
 			c.JSON(http.StatusPaymentRequired, gin.H{"code": "NO_QUOTA", "message": "an available package is required"})
 			return
 		}
@@ -135,7 +135,7 @@ func (h *Handler) Search(c *gin.Context) {
 		}
 		answer += item.Text
 	}
-	h.log(c, requestID, current.ID, keyID, query, true, http.StatusOK, "", started)
+	h.log(c, requestID, current.ID, keyID, query, true, "local", http.StatusOK, "", started)
 	h.recordSearch(c, current.ID, requestID, question.Question, question.Type, answer, question.Source, false, started)
 	if isOCS == true {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "q": question.Question, "data": answer})
@@ -159,18 +159,26 @@ func (h *Handler) OCSSearch(c *gin.Context) {
 	h.Search(c)
 }
 
-func (h *Handler) log(c *gin.Context, requestID string, userID, keyID uint64, question string, success bool, status int, errorCode string, started time.Time) {
+func (h *Handler) log(c *gin.Context, requestID string, userID, keyID uint64, question string, success bool, sourceKind string, status int, errorCode string, started time.Time) {
 	if h.logger == nil {
 		return
 	}
-	_ = h.logger.Log(c.Request.Context(), calls.Log{RequestID: requestID, UserID: userID, APIKeyID: keyID, Endpoint: "/api/v1/search", Question: question, Success: success, HTTPStatus: status, ErrorCode: errorCode, Elapsed: time.Since(started)})
+	endpoint := "/api/v1/search"
+	if isOCS, _ := c.Get("ocsMode"); isOCS == true {
+		endpoint = "/api/ocs/search"
+	}
+	_ = h.logger.Log(c.Request.Context(), calls.Log{RequestID: requestID, UserID: userID, APIKeyID: keyID, Endpoint: endpoint, Question: question, Success: success, SourceKind: sourceKind, HTTPStatus: status, ErrorCode: errorCode, Elapsed: time.Since(started)})
 }
 
 func (h *Handler) logAI(c *gin.Context, requestID string, userID, keyID uint64, question string, success bool, status int, errorCode string, started time.Time) {
 	if h.logger == nil {
 		return
 	}
-	_ = h.logger.Log(c.Request.Context(), calls.Log{RequestID: requestID, UserID: userID, APIKeyID: keyID, Endpoint: "/api/v1/search", Question: question, Success: success, IsAI: true, HTTPStatus: status, ErrorCode: errorCode, Elapsed: time.Since(started)})
+	endpoint := "/api/v1/search"
+	if isOCS, _ := c.Get("ocsMode"); isOCS == true {
+		endpoint = "/api/ocs/search"
+	}
+	_ = h.logger.Log(c.Request.Context(), calls.Log{RequestID: requestID, UserID: userID, APIKeyID: keyID, Endpoint: endpoint, Question: question, Success: success, IsAI: true, SourceKind: "ai", HTTPStatus: status, ErrorCode: errorCode, Elapsed: time.Since(started)})
 }
 
 func (h *Handler) recordSearch(c *gin.Context, userID uint64, requestID, question, questionType, answer, source string, isAI bool, started time.Time) {
