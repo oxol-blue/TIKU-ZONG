@@ -4,8 +4,8 @@ import "testing"
 
 func TestLookupAndStringifyAnswer(t *testing.T) {
 	document := map[string]any{
-		"code": float64(1),
-		"data": []any{"答案一", "答案二"},
+		"code":   float64(1),
+		"data":   []any{"答案一", "答案二"},
 		"nested": map[string]any{"items": []any{map[string]any{"value": "命中"}}},
 	}
 	if value, ok := lookup(document, "nested.items[0].value"); !ok || value != "命中" {

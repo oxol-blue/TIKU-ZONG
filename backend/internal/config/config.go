@@ -21,6 +21,7 @@ type Config struct {
 	APIRateLimitPerMinute int
 	IPBlacklist           []string
 	IPWhitelist           []string
+	AdminTOTPSecret       string
 }
 
 // Load reads configuration from environment variables and applies local defaults.
@@ -39,6 +40,7 @@ func Load() Config {
 		APIRateLimitPerMinute: envIntOrDefault("API_RATE_LIMIT_PER_MINUTE", 120),
 		IPBlacklist:           splitList(os.Getenv("IP_BLACKLIST")),
 		IPWhitelist:           splitList(os.Getenv("IP_WHITELIST")),
+		AdminTOTPSecret:       os.Getenv("ADMIN_TOTP_SECRET"),
 	}
 }
 

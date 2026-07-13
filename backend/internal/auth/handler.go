@@ -3,8 +3,10 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/totp"
 )
 
 type Handler struct {
@@ -155,6 +157,22 @@ func RequireRole(role string) gin.HandlerFunc {
 }
 
 func RequireAdmin() gin.HandlerFunc { return RequireRole(RoleAdmin) }
+
+func RequireAdminWithTOTP(secret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		value, exists := c.Get("currentUser")
+		user, ok := value.(User)
+		if !exists || !ok || user.Role != RoleAdmin {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "permission denied"})
+			return
+		}
+		if secret != "" && !totp.Verify(secret, c.GetHeader("X-Admin-TOTP"), time.Now().UTC()) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": "ADMIN_TOTP_REQUIRED", "message": "valid administrator TOTP is required"})
+			return
+		}
+		c.Next()
+	}
+}
 
 // RequireBearerOrAPIKey accepts a JWT Authorization header or the public key query parameter.
 func (h *Handler) RequireBearerOrAPIKey() gin.HandlerFunc {

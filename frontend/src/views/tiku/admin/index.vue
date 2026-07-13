@@ -1,7 +1,7 @@
 <template>
   <div class="admin-page">
     <el-card shadow="never" class="admin-card">
-      <template #header><div class="card-title"><span>题库系统管理</span><el-tag type="warning">管理员接口</el-tag></div></template>
+      <template #header><div class="card-title"><span>题库系统管理</span><div class="header-actions"><el-input v-model="adminTotp" type="password" maxlength="6" placeholder="TOTP（启用时填写）" @change="saveTotp" /><el-tag type="warning">管理员接口</el-tag></div></div></template>
       <el-tabs v-model="activeTab">
         <el-tab-pane label="OCS 题库源" name="ocs">
           <el-form :model="ocsForm" label-position="top" class="form-grid">
@@ -76,6 +76,7 @@ import { ElMessage } from "element-plus";
 import { configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, listAiModels, listOcsSources } from "@/api/tiku";
 
 const activeTab = ref("ocs");
+const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
 const saving = ref(false);
 const ocsSources = ref<any[]>([]);
 const models = ref<any[]>([]);
@@ -86,6 +87,7 @@ const gatewayForm = reactive({ name: "易支付", baseUrl: "", merchantId: "", s
 const packageForm = reactive({ name: "", type: "count", totalCount: 100, aiCount: 0, priceCents: 0, limitCount: 0 });
 const couponForm = reactive({ code: "", discountType: "percent", discountValue: 10, totalLimit: 0 });
 const refresh = async () => { ocsSources.value = (await listOcsSources()).data ?? []; models.value = (await listAiModels()).data ?? []; };
+const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
 const saveModel = async () => { await createAiModel(modelForm); ElMessage.success("AI 模型已创建"); await refresh(); };
@@ -96,5 +98,5 @@ onMounted(refresh);
 </script>
 
 <style scoped lang="scss">
-.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title { display: flex; align-items: center; justify-content: space-between; font-weight: 700; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.table { margin-top: 18px; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.table { margin-top: 18px; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
 </style>

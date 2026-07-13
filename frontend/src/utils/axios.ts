@@ -9,7 +9,7 @@ declare module 'axios' {
 }
 
 import { koiMsgError, koiNoticeWarning, koiNoticeError } from "@/utils/koi.ts";
-import { LOGIN_URL } from "@/config/index.ts";
+import { CACHE_PREFIX, LOGIN_URL } from "@/config/index.ts";
 import useUserStore from "@/stores/modules/user.ts";
 import { getToken } from "@/utils/storage.ts";
 import router from "@/routers/index.ts";
@@ -150,6 +150,12 @@ class Yu {
           config.headers!["Authorization"] = "Bearer " + token;
         } else {
           delete config.headers!["Authorization"];
+        }
+        const adminTotp = window.sessionStorage.getItem(CACHE_PREFIX + "admin-totp");
+        if (adminTotp) {
+          config.headers!["X-Admin-TOTP"] = adminTotp;
+        } else if (config.headers) {
+          delete config.headers["X-Admin-TOTP"];
         }
         return config;
       },
