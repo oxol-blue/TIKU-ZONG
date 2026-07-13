@@ -5,7 +5,7 @@
       <el-alert title="API Key 只在创建时显示完整值，请妥善保存。系统数据库只保存哈希。" type="warning" :closable="false" show-icon />
       <div v-if="keyView" class="key-box"><div><span class="label">当前 Key</span><code>{{ keyView.masked }}</code></div><span class="created">创建于 {{ keyView.createdAt }}</span></div>
       <el-empty v-else description="尚未创建 API Key" />
-      <div class="actions"><el-button type="primary" :loading="creating" :disabled="!!keyView" @click="create">创建 API Key</el-button><el-button type="warning" :loading="creating" :disabled="!keyView" @click="rotate">重新生成 Key</el-button><el-button :disabled="!keyView" @click="load">刷新状态</el-button></div>
+      <div class="actions"><el-button type="primary" :loading="creating" :disabled="!!keyView" @click="create">创建 API Key</el-button><el-button type="warning" :loading="creating" :disabled="!keyView" @click="rotate">重新生成 Key</el-button><el-button type="danger" plain :loading="revoking" :disabled="!keyView" @click="revoke">停用 Key</el-button><el-button :disabled="!keyView" @click="load">刷新状态</el-button></div>
       <el-alert v-if="plainKey" class="plain-key" title="请立即复制完整 Key，此值不会再次返回" type="success" :closable="false"><template #default><code>{{ plainKey }}</code><el-button link type="primary" @click="copyKey">复制</el-button></template></el-alert>
     </el-card>
 
@@ -24,7 +24,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { createApiKey, getApiKey, rotateApiKey, type ApiKeyView } from "@/api/tiku";
+import { createApiKey, getApiKey, revokeApiKey, rotateApiKey, type ApiKeyView } from "@/api/tiku";
 import { getToken } from "@/utils/storage";
 
 const keyView = ref<ApiKeyView>();
@@ -32,10 +32,12 @@ const plainKey = ref("");
 const ocsKey = ref("");
 const ocsConfig = ref("");
 const creating = ref(false);
+const revoking = ref(false);
 const loadingConfig = ref(false);
 const load = async () => { try { keyView.value = (await getApiKey()).data; } catch { keyView.value = undefined; } };
 const create = async () => { creating.value = true; try { const response = await createApiKey(); plainKey.value = response.data.key; ocsKey.value = response.data.key; keyView.value = response.data.info; } finally { creating.value = false; } };
 const rotate = async () => { if (!window.confirm("重新生成后旧 API Key 将立即失效，是否继续？")) return; creating.value = true; try { const response = await rotateApiKey(); plainKey.value = response.data.key; ocsKey.value = response.data.key; keyView.value = response.data.info; ocsConfig.value = ""; } finally { creating.value = false; } };
+const revoke = async () => { if (!window.confirm("停用后 API 和 OCS 调用将立即失效，是否继续？")) return; revoking.value = true; try { await revokeApiKey(); keyView.value = undefined; plainKey.value = ""; ocsKey.value = ""; ocsConfig.value = ""; ElMessage.success("API Key 已停用"); } finally { revoking.value = false; } };
 const copy = async (value: string) => { await navigator.clipboard.writeText(value); ElMessage.success("已复制"); };
 const copyKey = () => copy(plainKey.value);
 const copyConfig = () => copy(ocsConfig.value);

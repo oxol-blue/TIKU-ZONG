@@ -113,6 +113,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.GET("/api-key", authHandler.GetAPIKey)
 	protected.POST("/api-key", authHandler.CreateAPIKey)
 	protected.POST("/api-key/rotate", authHandler.RotateAPIKey)
+	protected.DELETE("/api-key", authHandler.RevokeAPIKey)
 	questionHandler := questions.NewHandler(questionService, callLogger, billingService, aiService, ocsService)
 	aiHandler := ai.NewHandler(aiService)
 	ocsHandler := ocs.NewHandler(cfg.PublicBaseURL, ocsStore)

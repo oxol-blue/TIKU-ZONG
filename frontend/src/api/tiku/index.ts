@@ -99,6 +99,8 @@ export const createApiKey = () =>
 export const rotateApiKey = () =>
   koi.post<{ code: number; message: string; data: { key: string; info: ApiKeyView } }>("/api/v1/api-key/rotate");
 
+export const revokeApiKey = () => koi.delete<{ code: number; message: string }>("/api/v1/api-key");
+
 export const getOcsConfig = () => koi.get<any>("/api/ocs/config", { key: "" });
 
 export const listOcsSources = () => koi.get<{ code: number; message: string; data: any[] }>("/api/v1/admin/ocs/sources");

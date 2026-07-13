@@ -198,6 +198,22 @@ func (h *Handler) RotateAPIKey(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "rotated", "data": gin.H{"key": plain, "info": view}})
 }
 
+func (h *Handler) RevokeAPIKey(c *gin.Context) {
+	user, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	if err := h.service.RevokeAPIKey(c.Request.Context(), user.ID); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "API_KEY_NOT_FOUND", "message": "API key not created or already revoked"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "API_KEY_REVOKE_FAILED", "message": "failed to revoke api key"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "revoked"})
+}
+
 func (h *Handler) AdminUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))

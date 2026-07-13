@@ -179,6 +179,10 @@ func (s *Service) RotateAPIKey(ctx context.Context, userID uint64) (string, APIK
 	return s.store.RotateAPIKey(ctx, userID)
 }
 
+func (s *Service) RevokeAPIKey(ctx context.Context, userID uint64) error {
+	return s.store.RevokeAPIKey(ctx, userID)
+}
+
 func (s *Service) AuthenticateAPIKey(ctx context.Context, plain string) (User, uint64, error) {
 	if strings.TrimSpace(plain) == "" {
 		return User{}, 0, ErrInvalidCredentials

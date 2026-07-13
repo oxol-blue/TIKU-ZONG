@@ -1,5 +1,9 @@
 # API 接口设计文档
 
+## 停用 API Key
+
+`DELETE /api/v1/api-key` 需要登录 JWT。接口将当前用户唯一 API Key 标记为已停用，API/OCS 请求立即无法再使用该 Key；历史调用日志仍保留。之后可通过创建或重新生成操作获得新的 Key。
+
 ## 管理员文件导入题库
 
 `POST /api/v1/admin/questions/import/file` 使用 `multipart/form-data` 上传字段 `file`，仅接受 `.csv` 或 `.xlsx`，单文件不超过 10 MB、最多 1000 条数据。需要管理员 JWT；启用管理员 TOTP 时同时传递 `X-Admin-TOTP`。

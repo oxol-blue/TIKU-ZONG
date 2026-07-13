@@ -357,6 +357,19 @@ func (s *Store) RotateAPIKey(ctx context.Context, userID uint64) (string, APIKey
 	return plain, APIKeyView{Prefix: prefix, Masked: maskAPIKey(plain), CreatedAt: time.Now()}, nil
 }
 
+// RevokeAPIKey disables the user's current key immediately while retaining the
+// hashed record for audit and call-log referential integrity.
+func (s *Store) RevokeAPIKey(ctx context.Context, userID uint64) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE user_api_keys SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`, time.Now().UTC(), userID)
+	if err != nil {
+		return fmt.Errorf("revoke api key: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) ResolveAPIKey(ctx context.Context, plain string) (User, uint64, error) {
 	var user User
 	var keyID uint64
