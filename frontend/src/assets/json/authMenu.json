@@ -621,6 +621,36 @@
       "redirect": ""
     },
     {
+      "menuId": 110,
+      "menuName": "搜索记录",
+      "parentId": 10,
+      "menuType": "2",
+      "path": "/tiku/search-history",
+      "name": "tikuSearchHistoryPage",
+      "component": "tiku/search-history/index",
+      "icon": "koi-document-forward",
+      "isVisible": "1",
+      "isKeepAlive": "1",
+      "isTag": "1",
+      "isAffix": "0",
+      "redirect": ""
+    },
+    {
+      "menuId": 111,
+      "menuName": "AI 搜索记录",
+      "parentId": 10,
+      "menuType": "2",
+      "path": "/tiku/ai-search-history",
+      "name": "tikuAiSearchHistoryPage",
+      "component": "tiku/search-history/index",
+      "icon": "koi-cpu-setting",
+      "isVisible": "1",
+      "isKeepAlive": "1",
+      "isTag": "1",
+      "isAffix": "0",
+      "redirect": ""
+    },
+    {
       "menuId": 107,
       "menuName": "用户中心",
       "parentId": 10,

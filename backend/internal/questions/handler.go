@@ -69,6 +69,7 @@ func (h *Handler) Search(c *gin.Context) {
 					}
 				}
 				h.log(c, requestID, current.ID, keyID, query, true, http.StatusOK, "", started)
+				h.recordSearch(c, current.ID, requestID, external.Question, questionType, external.Answer, external.Source, false, started)
 				if isOCS == true {
 					c.JSON(http.StatusOK, gin.H{"code": 1, "q": external.Question, "data": external.Answer})
 				} else {
@@ -97,6 +98,7 @@ func (h *Handler) Search(c *gin.Context) {
 					}
 				}
 				h.logAI(c, requestID, current.ID, keyID, query, true, http.StatusOK, "", started)
+				h.recordSearch(c, current.ID, requestID, query, questionType, aiAnswer.Text, aiAnswer.Provider+"/"+aiAnswer.Model, true, started)
 				if isOCS == true {
 					c.JSON(http.StatusOK, gin.H{"code": 1, "q": query, "data": aiAnswer.Text})
 				} else {
@@ -134,6 +136,7 @@ func (h *Handler) Search(c *gin.Context) {
 		answer += item.Text
 	}
 	h.log(c, requestID, current.ID, keyID, query, true, http.StatusOK, "", started)
+	h.recordSearch(c, current.ID, requestID, question.Question, question.Type, answer, question.Source, false, started)
 	if isOCS == true {
 		c.JSON(http.StatusOK, gin.H{"code": 1, "q": question.Question, "data": answer})
 		return
@@ -168,6 +171,16 @@ func (h *Handler) logAI(c *gin.Context, requestID string, userID, keyID uint64, 
 		return
 	}
 	_ = h.logger.Log(c.Request.Context(), calls.Log{RequestID: requestID, UserID: userID, APIKeyID: keyID, Endpoint: "/api/v1/search", Question: question, Success: success, IsAI: true, HTTPStatus: status, ErrorCode: errorCode, Elapsed: time.Since(started)})
+}
+
+func (h *Handler) recordSearch(c *gin.Context, userID uint64, requestID, question, questionType, answer, source string, isAI bool, started time.Time) {
+	if h.logger == nil {
+		return
+	}
+	_ = h.logger.RecordSearch(c.Request.Context(), calls.SearchHistory{
+		UserID: userID, RequestID: requestID, Question: question, Type: questionType,
+		Answer: answer, Source: source, IsAI: isAI, Elapsed: time.Since(started),
+	})
 }
 
 func (h *Handler) Import(c *gin.Context) {

@@ -22,6 +22,39 @@ type Log struct {
 	ErrorCode  string
 }
 
+// SearchHistory is a successful search result kept for the requesting user.
+// Unlike api_call_logs, it retains readable question and answer text so the user
+// can revisit their own online and API searches.
+type SearchHistory struct {
+	UserID    uint64
+	RequestID string
+	Question  string
+	Type      string
+	Answer    string
+	Source    string
+	IsAI      bool
+	Elapsed   time.Duration
+}
+
+type SearchHistoryItem struct {
+	ID            uint64    `json:"id"`
+	RequestID     string    `json:"requestId"`
+	Question      string    `json:"question"`
+	Type          string    `json:"type"`
+	Answer        string    `json:"answer"`
+	Source        string    `json:"source"`
+	IsAI          bool      `json:"isAi"`
+	ElapsedMicros int64     `json:"elapsedMicros"`
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
+type SearchHistoryPage struct {
+	Items    []SearchHistoryItem `json:"items"`
+	Page     int                 `json:"page"`
+	PageSize int                 `json:"pageSize"`
+	Total    int                 `json:"total"`
+}
+
 type Store struct{ db *sql.DB }
 
 type Dashboard struct {
@@ -54,6 +87,52 @@ func (s *Store) Log(ctx context.Context, item Log) error {
 		return fmt.Errorf("write api call log: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) RecordSearch(ctx context.Context, item SearchHistory) error {
+	if s == nil || s.db == nil || item.UserID == 0 || item.RequestID == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO search_history (user_id, request_id, question_text, question_type, answer_text, source, is_ai, elapsed_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE id = id`,
+		item.UserID, item.RequestID, item.Question, item.Type, item.Answer, item.Source, boolInt(item.IsAI), item.Elapsed.Microseconds())
+	if err != nil {
+		return fmt.Errorf("write search history: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) SearchHistoryByUser(ctx context.Context, userID uint64, isAI *bool, page, pageSize int) (SearchHistoryPage, error) {
+	page, pageSize = normalizeHistoryPage(page, pageSize)
+	where := "WHERE user_id = ?"
+	args := []any{userID}
+	if isAI != nil {
+		where += " AND is_ai = ?"
+		args = append(args, boolInt(*isAI))
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM search_history "+where, args...).Scan(&total); err != nil {
+		return SearchHistoryPage{}, err
+	}
+	args = append(args, (page-1)*pageSize, pageSize)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, request_id, question_text, question_type, answer_text, source, is_ai, elapsed_micros, created_at FROM search_history `+where+` ORDER BY id DESC LIMIT ?, ?`, args...)
+	if err != nil {
+		return SearchHistoryPage{}, err
+	}
+	defer rows.Close()
+	items := make([]SearchHistoryItem, 0)
+	for rows.Next() {
+		var item SearchHistoryItem
+		var isAI int
+		if err := rows.Scan(&item.ID, &item.RequestID, &item.Question, &item.Type, &item.Answer, &item.Source, &isAI, &item.ElapsedMicros, &item.CreatedAt); err != nil {
+			return SearchHistoryPage{}, err
+		}
+		item.IsAI = isAI == 1
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return SearchHistoryPage{}, err
+	}
+	return SearchHistoryPage{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
 }
 
 func (s *Store) Recent(ctx context.Context, limit int) ([]map[string]any, error) {
@@ -144,4 +223,17 @@ func boolInt(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+func normalizeHistoryPage(page, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
 }

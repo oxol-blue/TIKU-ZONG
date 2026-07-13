@@ -153,6 +153,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.POST("/admin/packages/:id/grant/:userId", adminOnly, billingHandler.GrantPackage)
 	protected.GET("/admin/calls", adminOnly, callHandler.Recent)
 	protected.GET("/calls/my", callHandler.Mine)
+	protected.GET("/search-history/my", callHandler.MySearchHistory)
 	protected.GET("/admin/dashboard", adminOnly, callHandler.Dashboard)
 	if settingsService != nil {
 		settingsHandler := settings.NewHandler(settingsService)

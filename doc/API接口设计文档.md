@@ -65,6 +65,8 @@ GET /api/ocs/search?key=API_KEY&q=题目
 
 `GET /api/v1/calls/my`（登录用户）返回当前用户最近调用记录，不返回题目明文，仅返回题目哈希、接口、来源、耗时和状态。
 
+`GET /api/v1/search-history/my`（登录用户）返回当前用户成功搜索的题目、文字答案、题型、来源、AI 标记、耗时和时间。支持 `page`、`pageSize` 分页以及 `isAi=true|false` 筛选；历史仅按当前 JWT 用户 ID 查询，API 调用日志中的失败请求不会写入该记录。
+
 `GET /api/v1/feedback/my`（登录用户）返回当前用户提交的反馈记录，仅返回题目哈希，不返回题目原文。
 
 `GET /api/v1/admin/feedback`（管理员）支持 `search`、`type`、`page` 和 `pageSize` 筛选反馈记录。

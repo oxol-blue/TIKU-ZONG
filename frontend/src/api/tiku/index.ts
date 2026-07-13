@@ -81,6 +81,26 @@ export const listAdminFeedback = (params: { page?: number; pageSize?: number; se
 export const listMyCalls = (limit = 100) =>
   koi.get<{ code: number; message: string; data: AdminCallLog[] }>("/api/v1/calls/my", { limit });
 
+export interface SearchHistoryItem {
+  id: number;
+  requestId: string;
+  question: string;
+  type: string;
+  answer: string;
+  source: string;
+  isAi: boolean;
+  elapsedMicros: number;
+  createdAt: string;
+}
+export interface SearchHistoryPage {
+  items: SearchHistoryItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+export const listMySearchHistory = (params: { page?: number; pageSize?: number; isAi?: boolean }) =>
+  koi.get<{ code: number; message: string; data: SearchHistoryPage }>("/api/v1/search-history/my", params);
+
 export const listPackages = () => koi.get<{ code: number; message: string; data: PackageItem[] }>("/api/v1/packages");
 
 export const listMyPackages = () =>
