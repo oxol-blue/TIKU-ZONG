@@ -47,7 +47,7 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
   // 1、NProgress 开始
   nprogress.start();
   // 2、标题切换，没有放置后置路由，是因为页面路径不存在，title会变成undefined
-  document.title = getMenuLanguage(to.meta?.title as string) || "KOI-ADMIN";
+  document.title = getMenuLanguage(to.meta?.title as string) || "题库调用系统";
 
   // 3、判断是访问登录页，有Token访问当前页面，token过期访问接口，axios封装则自动跳转登录页面，没有Token重置路由到登陆页。
   if (to.path.toLocaleLowerCase() === LOGIN_URL) {
@@ -84,6 +84,11 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
     } catch {
       return { path: LOGIN_URL, replace: true };
     }
+  }
+
+  // 即使用户手动输入管理端地址，普通用户也不能进入管理页面。
+  if (to.path.startsWith("/tiku/admin") && !authStore.roleList.includes("admin")) {
+    return { path: "/403", replace: true };
   }
   
   // 7、正常访问页面。

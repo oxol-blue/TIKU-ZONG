@@ -81,6 +81,10 @@ function handle401Unauthorized(data: any) {
   if (currentPath === "/" || currentPath === LOGIN_URL) {
     const userStore = useUserStore();
     userStore.setToken("");
+    const message = data?.message ?? data?.msg;
+    if (message) {
+      koiNoticeError(String(message));
+    }
     return Promise.reject(data);
   }
 

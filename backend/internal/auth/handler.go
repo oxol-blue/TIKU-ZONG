@@ -28,6 +28,11 @@ type refreshRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
 }
 
+type changePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword" binding:"required"`
+	NewPassword     string `json:"newPassword" binding:"required"`
+}
+
 type userStatusRequest struct {
 	Status int `json:"status"`
 }
@@ -134,6 +139,22 @@ func (h *Handler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": user})
 }
 
+func (h *Handler) ChangePassword(c *gin.Context) {
+	user, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	var request changePasswordRequest
+	if !bindJSON(c, &request) {
+		return
+	}
+	if err := h.service.ChangePassword(c.Request.Context(), user.ID, request.CurrentPassword, request.NewPassword); err != nil {
+		handleAuthError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "password changed"})
+}
+
 func (h *Handler) GetAPIKey(c *gin.Context) {
 	user, ok := currentUser(c)
 	if !ok {
@@ -162,6 +183,19 @@ func (h *Handler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "created", "data": gin.H{"key": plain, "info": view}})
+}
+
+func (h *Handler) RotateAPIKey(c *gin.Context) {
+	user, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	plain, view, err := h.service.RotateAPIKey(c.Request.Context(), user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "API_KEY_ROTATE_FAILED", "message": "failed to rotate api key"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "rotated", "data": gin.H{"key": plain, "info": view}})
 }
 
 func (h *Handler) AdminUsers(c *gin.Context) {

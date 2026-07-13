@@ -37,6 +37,18 @@ type CreatePackageInput struct {
 	IsFree          int    `json:"isFree"`
 }
 
+type UpdatePackageInput struct {
+	Name            string `json:"name" binding:"required"`
+	Type            string `json:"type" binding:"required"`
+	DurationSeconds *int64 `json:"durationSeconds"`
+	TotalCount      int    `json:"totalCount"`
+	AICount         int    `json:"aiCount"`
+	PriceCents      int    `json:"priceCents"`
+	LimitCount      int    `json:"limitCount"`
+	IsTrial         int    `json:"isTrial"`
+	IsFree          int    `json:"isFree"`
+}
+
 type Coupon struct {
 	ID            uint64     `json:"id"`
 	Code          string     `json:"code"`

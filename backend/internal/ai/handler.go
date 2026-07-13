@@ -32,7 +32,7 @@ func (h *Handler) CreateModel(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid AI model payload"})
 		return
 	}
-	id, err := h.service.store.CreateModel(c.Request.Context(), request)
+	id, err := h.service.CreateModel(c.Request.Context(), request)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "AI_MODEL_CREATE_FAILED", "message": err.Error()})
 		return

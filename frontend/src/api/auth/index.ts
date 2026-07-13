@@ -26,3 +26,7 @@ export const register = (data: { email: string; password: string; inviteCode?: s
 
 export const refresh = (refreshToken: string) =>
   koi.post<{ code: number; message: string; data: AuthSession }>("/api/v1/auth/refresh", { refreshToken });
+
+export const getMe = () => koi.get<{ code: number; message: string; data: AuthUser }>("/api/v1/me");
+export const changePassword = (data: { currentPassword: string; newPassword: string }) =>
+  koi.post<{ code: number; message: string }>("/api/v1/password/change", data);

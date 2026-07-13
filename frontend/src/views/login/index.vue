@@ -22,9 +22,9 @@
           <div class="pos-absolute text-center select-none transition-all transition-ease transition-500 content-layer">
             <div class="brand-badge flex flex-items-center flex-justify-center gap-10px m-b-32px <md:hidden">
               <div class="login-logo-wrap login-logo-wrap--brand">
-                <img class="login-logo" :src="logo" alt="KOI-ADMIN" />
+                <img class="login-logo" :src="logo" :alt="publicSettings.siteName" />
               </div>
-              <span class="brand-text text-18px font-700">KOI-ADMIN</span>
+              <span class="brand-text text-18px font-700">{{ publicSettings.siteName }}</span>
             </div>
             <el-image
               class="w-260px max-w-500px h-260px m-b-40px animate-float-picture <md:hidden <lg:h-320px <lg:max-w-400px"
@@ -34,7 +34,7 @@
               {{ $t("menu.login.welcome") }}
             </div>
             <div class="welcome-subtitle text-28px font-800 m-b-16px text-center <lg:text-22px <md:hidden">
-              {{ $t("menu.login.title") || "KOI-ADMIN" }}
+              {{ publicSettings.siteName }}
             </div>
             <div class="welcome-desc text-16px font-400 text-center max-w-420px mx-auto leading-relaxed <md:hidden">
               {{ $t("menu.login.description") }}
@@ -55,12 +55,6 @@
             </div>
           </div>
 
-          <!-- 备案号 -->
-          <div class="bei-an-hao select-none <md:hidden">
-            <a class="text-[--el-text-color-primary]" href="https://beian.miit.gov.cn/" target="_blank"
-              >{{ $t("menu.login.beiAnHao") }}：豫ICP备2022022094号-1</a
-            >
-          </div>
         </div>
       </el-col>
 
@@ -75,9 +69,9 @@
           <!-- 移动端 Logo -->
           <div class="login-mobile-brand md:hidden">
             <div class="login-logo-wrap login-logo-wrap--mobile">
-              <img class="login-logo" :src="logo" alt="KOI-ADMIN" />
+              <img class="login-logo" :src="logo" :alt="publicSettings.siteName" />
             </div>
-            <div class="font-600 text-xl">{{ $t("menu.login.title") || "KOI-ADMIN" }}</div>
+            <div class="font-600 text-xl">{{ publicSettings.siteName }}</div>
           </div>
 
           <div class="form-header text-center m-b-32px">
@@ -85,6 +79,7 @@
             <p class="text-14px text-[--el-text-color-regular]">
               {{ isRegister ? "使用邮箱和密码注册" : `${$t("menu.login.form.loginName")} / ${$t("menu.login.form.password")}` }}
             </p>
+            <el-alert v-if="publicSettings.maintenanceNotice" :title="publicSettings.maintenanceNotice" type="warning" :closable="false" show-icon class="m-t-12px text-left" />
           </div>
 
           <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" class="login-form w-300px">
@@ -175,19 +170,13 @@
                   {{ $t("menu.login.picture") }}
                 </span>
               </el-button>
-              <el-button text size="small" @click="isRegister = !isRegister">
+              <el-button v-if="publicSettings.registrationEnabled" text size="small" @click="isRegister = !isRegister">
                 <span class="text-13px text-[--el-text-color-secondary] hover:text-[--el-color-primary] select-none transition-colors">{{ isRegister ? "返回登录" : "注册账号" }}</span>
               </el-button>
             </div>
           </el-form>
         </div>
 
-        <!-- 备案号 - 小屏 -->
-        <div class="bei-an-hao select-none lg:hidden md:hidden">
-          <a class="text-[--el-text-color-primary]" href="https://beian.miit.gov.cn/" target="_blank"
-            >{{ $t("menu.login.beiAnHao") }}：豫ICP备2022022094号-1</a
-          >
-        </div>
       </el-col>
     </el-row>
 
@@ -205,6 +194,7 @@ import { koiMsgWarning, koiMsgError } from "@/utils/koi.ts";
 import { useRouter } from "vue-router";
 // import { koiLogin, getCaptcha } from "@/api/system/login/index.ts";
 import { getCaptcha, login, register } from "@/api/auth/index.ts";
+import { getPublicSettings, type PublicSystemSettings } from "@/api/tiku";
 import useUserStore from "@/stores/modules/user.ts";
 import useAuthStore from "@/stores/modules/auth.ts";
 import useKeepAliveStore from "@/stores/modules/keepAlive.ts";
@@ -229,6 +219,7 @@ const router = useRouter();
 const loginFormRef = ref<FormInstance>();
 const loading = ref(false);
 const isRegister = ref(false);
+const publicSettings = reactive<PublicSystemSettings>({ siteName: "题库调用系统", supportUrl: "", maintenanceNotice: "", registrationEnabled: true });
 
 interface ILoginUser {
   loginName: string;
@@ -301,11 +292,15 @@ const handleCaptcha = async () => {
 // };
 
 // 进入页面加载管理员信息
-onMounted(() => {
-  // 获取验证码
-  handleCaptcha();
-  // 局部刷新定时器
-  // getCaptchaTimer();
+onMounted(async () => {
+  try {
+    Object.assign(publicSettings, (await getPublicSettings()).data);
+    document.title = publicSettings.siteName;
+    if (!publicSettings.registrationEnabled) isRegister.value = false;
+  } catch {
+    // Login remains available if the non-essential public settings endpoint fails.
+  }
+  void handleCaptcha();
 });
 
 // onUnmounted(() => {
@@ -369,6 +364,10 @@ const handleKoiLogin = () => {
         await router.replace(HOME_URL);
       } catch (error) {
         await handleCaptcha();
+        const message = typeof error === "object" && error !== null ? (error as any).message ?? (error as any).msg : "登录失败，请检查邮箱和密码";
+        if (message) {
+          koiMsgError(String(message));
+        }
         // 等待1秒关闭loading
         let loadingTime = 1;
         setInterval(() => {

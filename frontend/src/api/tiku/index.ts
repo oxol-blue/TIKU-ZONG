@@ -65,6 +65,21 @@ export const searchQuestion = (params: { q: string; type?: string; options?: str
 
 export const submitFeedback = (data: { requestId: string; question: string; feedbackType: string; comment?: string }) =>
   koi.post<{ code: number; message: string }>("/api/v1/feedback", data);
+export interface FeedbackItem {
+  id: number;
+  requestId: string;
+  questionHash: string;
+  feedbackType: string;
+  comment: string;
+  createdAt: string;
+}
+export const listMyFeedback = (limit = 50) =>
+  koi.get<{ code: number; message: string; data: FeedbackItem[] }>("/api/v1/feedback/my", { limit });
+export interface AdminFeedbackItem extends FeedbackItem { userId: number; userEmail: string; }
+export const listAdminFeedback = (params: { page?: number; pageSize?: number; search?: string; type?: string }) =>
+  koi.get<{ code: number; message: string; data: { items: AdminFeedbackItem[]; page: number; pageSize: number; total: number } }>("/api/v1/admin/feedback", params);
+export const listMyCalls = (limit = 100) =>
+  koi.get<{ code: number; message: string; data: AdminCallLog[] }>("/api/v1/calls/my", { limit });
 
 export const listPackages = () => koi.get<{ code: number; message: string; data: PackageItem[] }>("/api/v1/packages");
 
@@ -81,6 +96,9 @@ export const getApiKey = () => koi.get<{ code: number; message: string; data: Ap
 export const createApiKey = () =>
   koi.post<{ code: number; message: string; data: { key: string; info: ApiKeyView } }>("/api/v1/api-key");
 
+export const rotateApiKey = () =>
+  koi.post<{ code: number; message: string; data: { key: string; info: ApiKeyView } }>("/api/v1/api-key/rotate");
+
 export const getOcsConfig = () => koi.get<any>("/api/ocs/config", { key: "" });
 
 export const listOcsSources = () => koi.get<{ code: number; message: string; data: any[] }>("/api/v1/admin/ocs/sources");
@@ -95,8 +113,70 @@ export const configurePaymentGateway = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/payment/gateways", data);
 export const createAdminPackage = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: PackageItem }>("/api/v1/admin/packages", data);
+export const listAdminPackages = () =>
+  koi.get<{ code: number; message: string; data: PackageItem[] }>("/api/v1/admin/packages");
+export const updateAdminPackageStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/packages/${id}/status`, { status });
+export const updateAdminPackage = (id: number, data: Record<string, unknown>) =>
+  koi.put<{ code: number; message: string; data: PackageItem }>(`/api/v1/admin/packages/${id}`, data);
 export const createCoupon = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/coupons", data);
+export interface CouponItem {
+  id: number;
+  code: string;
+  discountType: string;
+  discountValue: number;
+  totalLimit: number;
+  usedCount: number;
+  reservedCount: number;
+  expiresAt?: string;
+  status: number;
+}
+export const listAdminCoupons = () =>
+  koi.get<{ code: number; message: string; data: CouponItem[] }>("/api/v1/admin/coupons");
+export const updateAdminCouponStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/coupons/${id}/status`, { status });
+export interface AnnouncementItem {
+  id: number;
+  title: string;
+  content: string;
+  status: number;
+  isPinned: number;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export const listAnnouncements = () =>
+  koi.get<{ code: number; message: string; data: AnnouncementItem[] }>("/api/v1/announcements");
+export const listAdminAnnouncements = () =>
+  koi.get<{ code: number; message: string; data: AnnouncementItem[] }>("/api/v1/admin/announcements");
+export const createAnnouncement = (data: { title: string; content: string; isPinned: number; status: number }) =>
+  koi.post<{ code: number; message: string; data: AnnouncementItem }>("/api/v1/admin/announcements", data);
+export const updateAnnouncement = (id: number, data: { title: string; content: string; isPinned: number }) =>
+  koi.put<{ code: number; message: string; data: AnnouncementItem }>(`/api/v1/admin/announcements/${id}`, data);
+export const updateAnnouncementStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/announcements/${id}/status`, { status });
+export interface SystemSettings {
+  siteName: string;
+  supportUrl: string;
+  maintenanceNotice: string;
+  registrationEnabled: boolean;
+}
+export interface PublicSystemSettings {
+  siteName: string;
+  supportUrl: string;
+  maintenanceNotice: string;
+  registrationEnabled: boolean;
+}
+export const getPublicSettings = () =>
+  koi.get<{ code: number; message: string; data: PublicSystemSettings }>("/api/v1/settings/public");
+export const getAdminSettings = () =>
+  koi.get<{ code: number; message: string; data: SystemSettings }>("/api/v1/admin/settings");
+export const updateAdminSettings = (data: SystemSettings) =>
+  koi.put<{ code: number; message: string; data: SystemSettings }>("/api/v1/admin/settings", data);
+export interface PaymentGatewayView { id: number; provider: string; name: string; baseUrl: string; merchantId: string; keyConfigured: boolean; enabled: number; }
+export const getPaymentGateway = (provider = "epay") =>
+  koi.get<{ code: number; message: string; data: PaymentGatewayView }>("/api/v1/admin/payment/gateways", { provider });
 
 export interface AdminUserItem {
   id: number;
@@ -155,6 +235,33 @@ export const getAdminQuestion = (id: number) =>
   koi.get<{ code: number; message: string; data: AdminQuestionDetail }>(`/api/v1/admin/questions/${id}`);
 export const updateAdminQuestionStatus = (id: number, status: number) =>
   koi.patch<{ code: number; message: string }>(`/api/v1/admin/questions/${id}/status`, { status });
+export interface QuestionImportItem {
+  question: string;
+  type?: string;
+  options?: { key: string; text: string }[];
+  answer: string;
+  answerRaw?: string;
+  platform?: string;
+  subject?: string;
+  source?: string;
+  collectedAt?: string;
+}
+export const importQuestions = (items: QuestionImportItem[]) =>
+  koi.post<{ code: number; message: string; data: { created: number; duplicates: number } }>("/api/v1/admin/questions/import", { items });
+export interface QuestionFileImportReport {
+  total: number;
+  valid: number;
+  created: number;
+  duplicates: number;
+  invalid: number;
+  preview: QuestionImportItem[];
+  errors: { row: number; question: string; message: string }[];
+}
+export const importQuestionFile = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return koi.upload<{ code: number; message: string; data: QuestionFileImportReport }>("/api/v1/admin/questions/import/file", formData);
+};
 
 export interface AdminOrderItem extends OrderItem {
   userId: number;
@@ -185,10 +292,54 @@ export const listAdminOrders = (params: { page?: number; pageSize?: number; sear
   koi.get<{ code: number; message: string; data: { items: AdminOrderItem[]; page: number; pageSize: number; total: number } }>("/api/v1/admin/orders", params);
 export const closeExpiredOrders = () =>
   koi.post<{ code: number; message: string; data: { count: number } }>("/api/v1/admin/orders/close-expired");
-export const refundOrder = (orderNo: string, data: { amountCents: number; reason?: string }) =>
+export const refundOrder = (orderNo: string, data: { amountCents: number; reason?: string; refundNo?: string }) =>
   koi.post<{ code: number; message: string; data: AdminOrderItem }>(`/api/v1/admin/orders/${encodeURIComponent(orderNo)}/refund`, data);
+export interface RefundItem {
+  id: number;
+  refundNo: string;
+  orderNo: string;
+  amountCents: number;
+  reason: string;
+  status: string;
+  createdAt: string;
+}
+export const listOrderRefunds = (orderNo: string) =>
+  koi.get<{ code: number; message: string; data: RefundItem[] }>(`/api/v1/admin/orders/${encodeURIComponent(orderNo)}/refunds`);
+export interface ReconciliationIssue {
+  orderNo: string;
+  issueType: string;
+  detail: string;
+}
+export const reconcileOrders = () =>
+  koi.get<{ code: number; message: string; data: { issues: ReconciliationIssue[]; count: number } }>("/api/v1/admin/orders/reconciliation");
 export const listAdminCalls = (limit = 100) =>
   koi.get<{ code: number; message: string; data: AdminCallLog[] }>("/api/v1/admin/calls", { limit });
+export interface AdminAuditLog {
+  id: number;
+  adminId: number;
+  adminEmail: string;
+  action: string;
+  resource: string;
+  requestPath: string;
+  ipAddress: string;
+  httpStatus: number;
+  createdAt: string;
+}
+export const listAdminAuditLogs = (params: { page?: number; pageSize?: number; search?: string }) =>
+  koi.get<{ code: number; message: string; data: { items: AdminAuditLog[]; page: number; pageSize: number; total: number } }>("/api/v1/admin/audit-logs", params);
+export interface DashboardStats {
+  userCount: number;
+  paidUserCount: number;
+  paidOrderCount: number;
+  paidAmountCents: number;
+  callCount: number;
+  successfulCalls: number;
+  aiCallCount: number;
+  ocsCallCount: number;
+  averageLatencyMs: number;
+}
+export const getDashboardStats = () =>
+  koi.get<{ code: number; message: string; data: DashboardStats }>("/api/v1/admin/dashboard");
 
 export interface AdminAiAnswer {
   id: number;

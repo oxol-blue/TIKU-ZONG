@@ -26,6 +26,54 @@ func (h *Handler) CreatePackage(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "created", "data": item})
 }
 
+func (h *Handler) AdminListPackages(c *gin.Context) {
+	items, err := h.service.ListPackages(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load packages"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
+func (h *Handler) AdminUpdatePackageStatus(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid package id"})
+		return
+	}
+	var request struct {
+		Status int `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil || (request.Status != 0 && request.Status != 1) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "invalid package status"})
+		return
+	}
+	if err := h.service.UpdatePackageStatus(c.Request.Context(), id, request.Status); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "PACKAGE_UPDATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
+}
+
+func (h *Handler) AdminUpdatePackage(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid package id"})
+		return
+	}
+	var request UpdatePackageInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid package payload"})
+		return
+	}
+	item, err := h.service.UpdatePackage(c.Request.Context(), id, request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "PACKAGE_UPDATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated", "data": item})
+}
+
 func (h *Handler) CreateCoupon(c *gin.Context) {
 	var request CreateCouponInput
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -47,6 +95,26 @@ func (h *Handler) ListCoupons(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
+func (h *Handler) AdminUpdateCouponStatus(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid coupon id"})
+		return
+	}
+	var request struct {
+		Status int `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil || (request.Status != 0 && request.Status != 1) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "invalid coupon status"})
+		return
+	}
+	if err := h.service.UpdateCouponStatus(c.Request.Context(), id, request.Status); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "COUPON_UPDATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
 }
 
 func (h *Handler) GrantPackage(c *gin.Context) {

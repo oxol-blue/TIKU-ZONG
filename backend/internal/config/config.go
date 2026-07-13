@@ -23,6 +23,8 @@ type Config struct {
 	IPWhitelist           []string
 	AdminTOTPSecret       string
 	AnswerMergeRule       string
+	AIQueueSize           int
+	AIQueueWorkers        int
 }
 
 // Load reads configuration from environment variables and applies local defaults.
@@ -32,7 +34,7 @@ func Load() Config {
 		AppName:               envOrDefault("APP_NAME", "tiku-zong-api"),
 		HTTPAddr:              envOrDefault("HTTP_ADDR", ":8088"),
 		MySQLDSN:              os.Getenv("MYSQL_DSN"),
-		RedisAddr:             envOrDefault("REDIS_ADDR", "127.0.0.1:6379"),
+		RedisAddr:             strings.TrimSpace(os.Getenv("REDIS_ADDR")),
 		JWTSecret:             os.Getenv("JWT_SECRET"),
 		EncryptionSecret:      envOrDefault("DATA_ENCRYPTION_SECRET", os.Getenv("JWT_SECRET")),
 		MySQLMaxOpenConns:     10,
@@ -43,6 +45,8 @@ func Load() Config {
 		IPWhitelist:           splitList(os.Getenv("IP_WHITELIST")),
 		AdminTOTPSecret:       os.Getenv("ADMIN_TOTP_SECRET"),
 		AnswerMergeRule:       envOrDefault("ANSWER_MERGE_RULE", "priority"),
+		AIQueueSize:           envIntOrDefault("AI_QUEUE_SIZE", 32),
+		AIQueueWorkers:        envIntOrDefault("AI_QUEUE_WORKERS", 2),
 	}
 }
 

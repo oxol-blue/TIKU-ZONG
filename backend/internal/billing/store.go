@@ -54,6 +54,47 @@ func (s *Store) ListAvailablePackages(ctx context.Context) ([]Package, error) {
 	return items, rows.Err()
 }
 
+func (s *Store) ListPackages(ctx context.Context) ([]Package, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, package_type, duration_seconds, total_count, ai_count, price_cents, status, limit_count, is_trial, is_free, created_at FROM packages ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]Package, 0)
+	for rows.Next() {
+		var item Package
+		if err := rows.Scan(&item.ID, &item.Name, &item.Type, &item.DurationSeconds, &item.TotalCount, &item.AICount, &item.PriceCents, &item.Status, &item.LimitCount, &item.IsTrial, &item.IsFree, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) UpdatePackageStatus(ctx context.Context, id uint64, status int) error {
+	if _, err := s.GetPackage(ctx, id); err != nil {
+		return err
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE packages SET status = ? WHERE id = ?`, status, id)
+	if err != nil {
+		return err
+	}
+	_ = result
+	return nil
+}
+
+func (s *Store) UpdatePackage(ctx context.Context, id uint64, input UpdatePackageInput) (Package, error) {
+	if _, err := s.GetPackage(ctx, id); err != nil {
+		return Package{}, err
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE packages SET name = ?, package_type = ?, duration_seconds = ?, total_count = ?, ai_count = ?, price_cents = ?, limit_count = ?, is_trial = ?, is_free = ? WHERE id = ?`, input.Name, input.Type, input.DurationSeconds, input.TotalCount, input.AICount, input.PriceCents, input.LimitCount, input.IsTrial, input.IsFree, id)
+	if err != nil {
+		return Package{}, err
+	}
+	_ = result
+	return s.GetPackage(ctx, id)
+}
+
 func (s *Store) CreateCoupon(ctx context.Context, input CreateCouponInput) (Coupon, error) {
 	result, err := s.db.ExecContext(ctx, `INSERT INTO coupons (code, discount_type, discount_value, total_limit, expires_at) VALUES (?, ?, ?, ?, ?)`, input.Code, input.DiscountType, input.DiscountValue, input.TotalLimit, input.ExpiresAt)
 	if err != nil {
@@ -88,6 +129,18 @@ func (s *Store) ListCoupons(ctx context.Context) ([]Coupon, error) {
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (s *Store) UpdateCouponStatus(ctx context.Context, id uint64, status int) error {
+	if _, err := s.GetCoupon(ctx, id); err != nil {
+		return err
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE coupons SET status = ? WHERE id = ?`, status, id)
+	if err != nil {
+		return err
+	}
+	_ = result
+	return nil
 }
 
 func (s *Store) GrantPackage(ctx context.Context, userID, packageID uint64) (PackageInstance, error) {
@@ -209,4 +262,22 @@ func (s *Store) Consume(ctx context.Context, userID, packageID uint64, kind, req
 		selected.RemainingCount -= amount
 	}
 	return selected, nil
+}
+
+// HasAIQuota performs a non-mutating preflight before an external AI request.
+// Consume remains the authoritative transactional deduction after a successful response.
+func (s *Store) HasAIQuota(ctx context.Context, userID, packageID uint64) (bool, error) {
+	now := time.Now().UTC()
+	query := `SELECT EXISTS(SELECT 1 FROM package_instances i WHERE i.user_id = ? AND i.status = 1 AND i.starts_at <= ? AND (i.expires_at IS NULL OR i.expires_at > ?) AND i.remaining_ai_count >= 1`
+	args := []any{userID, now, now}
+	if packageID != 0 {
+		query += ` AND i.package_id = ?`
+		args = append(args, packageID)
+	}
+	query += `)`
+	var exists bool
+	if err := s.db.QueryRowContext(ctx, query, args...).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
 }

@@ -2,6 +2,12 @@ package ai
 
 import "time"
 
+const (
+	BillingModeFixed = "fixed"
+	BillingModeToken = "token"
+	BillingModeCost  = "cost"
+)
+
 type CreateProviderInput struct {
 	Name    string `json:"name" binding:"required"`
 	BaseURL string `json:"baseUrl" binding:"required"`
@@ -9,24 +15,34 @@ type CreateProviderInput struct {
 }
 
 type CreateModelInput struct {
-	ProviderID     uint64 `json:"providerId" binding:"required"`
-	Name           string `json:"name" binding:"required"`
-	Priority       int    `json:"priority"`
-	TimeoutSeconds int    `json:"timeoutSeconds"`
-	AIChargeCount  int    `json:"aiChargeCount"`
+	ProviderID                uint64 `json:"providerId" binding:"required"`
+	Name                      string `json:"name" binding:"required"`
+	Priority                  int    `json:"priority"`
+	TimeoutSeconds            int    `json:"timeoutSeconds"`
+	AIChargeCount             int    `json:"aiChargeCount"`
+	BillingMode               string `json:"billingMode"`
+	TokenUnit                 int    `json:"tokenUnit"`
+	CostPerMillionTokensCents int    `json:"costPerMillionTokensCents"`
+	CostMarkupPercent         int    `json:"costMarkupPercent"`
+	CostUnitCents             int    `json:"costUnitCents"`
 }
 
 type Model struct {
-	ID             uint64 `json:"id"`
-	ProviderID     uint64 `json:"providerId"`
-	ProviderName   string `json:"providerName"`
-	BaseURL        string `json:"-"`
-	EncryptedKey   string `json:"-"`
-	KeyConfigured  bool   `json:"keyConfigured"`
-	Name           string `json:"name"`
-	Priority       int    `json:"priority"`
-	TimeoutSeconds int    `json:"timeoutSeconds"`
-	AIChargeCount  int    `json:"aiChargeCount"`
+	ID                        uint64 `json:"id"`
+	ProviderID                uint64 `json:"providerId"`
+	ProviderName              string `json:"providerName"`
+	BaseURL                   string `json:"-"`
+	EncryptedKey              string `json:"-"`
+	KeyConfigured             bool   `json:"keyConfigured"`
+	Name                      string `json:"name"`
+	Priority                  int    `json:"priority"`
+	TimeoutSeconds            int    `json:"timeoutSeconds"`
+	AIChargeCount             int    `json:"aiChargeCount"`
+	BillingMode               string `json:"billingMode"`
+	TokenUnit                 int    `json:"tokenUnit"`
+	CostPerMillionTokensCents int    `json:"costPerMillionTokensCents"`
+	CostMarkupPercent         int    `json:"costMarkupPercent"`
+	CostUnitCents             int    `json:"costUnitCents"`
 }
 
 type Answer struct {

@@ -87,7 +87,7 @@ func (h *Handler) Notify(c *gin.Context) {
 func (h *Handler) ConfigureGateway(c *gin.Context) {
 	var input GatewayInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid payment gateway payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "provider, name, baseUrl and merchantId are required"})
 		return
 	}
 	if h.service == nil {
@@ -100,6 +100,20 @@ func (h *Handler) ConfigureGateway(c *gin.Context) {
 	}
 	item.EncryptedKey = ""
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "saved", "data": item})
+}
+
+func (h *Handler) Gateway(c *gin.Context) {
+	if h.service == nil {
+		return
+	}
+	provider := c.DefaultQuery("provider", ProviderEpay)
+	item, err := h.service.Store().GetGateway(c.Request.Context(), provider)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": "PAYMENT_GATEWAY_NOT_FOUND", "message": "payment gateway is not configured"})
+		return
+	}
+	item.EncryptedKey = ""
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": item})
 }
 
 func (h *Handler) CloseExpired(c *gin.Context) {
@@ -116,19 +130,33 @@ func (h *Handler) CloseExpired(c *gin.Context) {
 
 func (h *Handler) Refund(c *gin.Context) {
 	orderNo := c.Param("orderNo")
-	amount, err := strconv.Atoi(c.Query("amountCents"))
-	if err != nil {
-		var input RefundInput
-		if bindErr := c.ShouldBindJSON(&input); bindErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "amountCents is required"})
+	var input RefundInput
+	_ = c.ShouldBindJSON(&input)
+	amount := input.AmountCents
+	if value := c.Query("amountCents"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "amountCents is invalid"})
 			return
 		}
-		amount = input.AmountCents
+		amount = parsed
+	}
+	if amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "amountCents is required"})
+		return
 	}
 	if h.service == nil {
 		return
 	}
-	item, err := h.service.Store().RecordRefund(c.Request.Context(), orderNo, amount, c.Query("reason"), orderNo+"-R"+strconv.FormatInt(nowUTC().UnixNano(), 10))
+	refundNo := input.RefundNo
+	if refundNo == "" {
+		refundNo = orderNo + "-R" + strconv.FormatInt(nowUTC().UnixNano(), 10)
+	}
+	reason := input.Reason
+	if reason == "" {
+		reason = c.Query("reason")
+	}
+	item, err := h.service.Store().RecordRefund(c.Request.Context(), orderNo, amount, reason, refundNo)
 	if err != nil {
 		status := http.StatusBadRequest
 		if errors.Is(err, ErrOrderNotFound) {
@@ -138,6 +166,34 @@ func (h *Handler) Refund(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "refunded", "data": item})
+}
+
+func (h *Handler) Refunds(c *gin.Context) {
+	if h.service == nil {
+		return
+	}
+	items, err := h.service.Store().ListRefunds(c.Request.Context(), c.Param("orderNo"))
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrOrderNotFound) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"code": "REFUNDS_LOAD_FAILED", "message": "failed to load refunds"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
+func (h *Handler) Reconciliation(c *gin.Context) {
+	if h.service == nil {
+		return
+	}
+	items, err := h.service.Store().Reconcile(c.Request.Context(), nowUTC())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "RECONCILIATION_FAILED", "message": "failed to reconcile orders"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{"issues": items, "count": len(items)}})
 }
 
 func currentUser(c *gin.Context) (auth.User, bool) {

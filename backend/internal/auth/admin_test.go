@@ -29,3 +29,15 @@ func TestNormalizePage(t *testing.T) {
 		t.Fatalf("unexpected limits: page=%d size=%d", page, size)
 	}
 }
+
+func TestPasswordChangeValidation(t *testing.T) {
+	invalid := [][2]string{{"", "new-password"}, {"old", "short"}, {"old", ""}, {"same-password", "same-password"}}
+	for _, pair := range invalid {
+		if err := validatePasswordChange(pair[0], pair[1]); err != ErrInvalidInput {
+			t.Fatalf("expected invalid password input for %q, got %v", pair, err)
+		}
+	}
+	if err := validatePasswordChange("old-password", "new-password"); err != nil {
+		t.Fatalf("expected valid password input, got %v", err)
+	}
+}

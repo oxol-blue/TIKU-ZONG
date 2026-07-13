@@ -50,7 +50,9 @@ const doInitDynamicRouter = async () => {
 
   try {
     if (!authStore.menuList?.length) {
-      await Promise.all([authStore.listRouters(), authStore.getLoginUserInfo()]);
+      // 菜单由真实用户角色决定，避免普通用户注册管理端页面。
+      await authStore.getLoginUserInfo();
+      await authStore.listRouters();
     }
 
     if (!authStore.menuList?.length) {

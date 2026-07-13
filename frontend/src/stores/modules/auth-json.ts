@@ -6,6 +6,8 @@ import authUser from "@/assets/json/authUser.json";
 import { generateRoutes, generateFlattenRoutes } from "@/utils/filterRoute.ts";
 import { getShowStaticAndDynamicMenuList, getAllBreadcrumbList } from "@/utils/index.ts";
 
+const businessMenus = (menus: any[]) => menus.filter((item: any) => item.path === "/tiku" || item.path.startsWith("/tiku/"));
+
 // 权限数据，不进行持久化。否则刷新浏览器无法获取新的数据。
 const authStore = defineStore("auth", {
   // 存储数据state
@@ -35,13 +37,14 @@ const authStore = defineStore("auth", {
     // 获取后端菜单数据
     async listRouters() {
       // res.data是后端接口原始数据，进行扁平化路由数据。
-      this.menuList = generateFlattenRoutes(authMenu.data);
+      const menus = businessMenus(authMenu.data);
+      this.menuList = generateFlattenRoutes(menus);
       // 持久化递归菜单数据，左侧菜单栏渲染，这里的菜单将后端数据进行递归，需要将动态路由 isVisible == 0 的隐藏菜单剔除，将静态路由 isVisible == 0 的隐藏菜单剔除
       this.recursiveMenuList = getShowStaticAndDynamicMenuList(staticRouter).concat(
-        generateRoutes(getShowStaticAndDynamicMenuList(authMenu.data), 0)
+        generateRoutes(getShowStaticAndDynamicMenuList(businessMenus(authMenu.data)), 0)
       );
       // 面包屑需要静态和动态所有的数据，无论是否隐藏
-      this.breadcrumbList = staticRouter.concat(generateRoutes(authMenu.data, 0));
+      this.breadcrumbList = staticRouter.concat(generateRoutes(businessMenus(authMenu.data), 0));
     },
     // 获取角色数据 AND 按钮数据 AND 用户信息
     async getLoginUserInfo() {

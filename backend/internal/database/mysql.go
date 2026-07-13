@@ -24,7 +24,10 @@ func OpenMySQL(cfg config.Config) (*sql.DB, error) {
 	db.SetMaxIdleConns(cfg.MySQLMaxIdleConns)
 	db.SetConnMaxLifetime(30 * time.Minute)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// Remote cloud databases can complete TCP connection quickly while TLS/MySQL
+	// authentication takes longer than a local connection. Keep startup reliable
+	// without leaving an unbounded blocking dial.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()

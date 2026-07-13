@@ -43,7 +43,16 @@ func (s *Store) CreateModel(ctx context.Context, input CreateModelInput) (uint64
 	if input.AIChargeCount == 0 {
 		input.AIChargeCount = 1
 	}
-	result, err := s.db.ExecContext(ctx, `INSERT INTO ai_models (provider_id, name, priority, timeout_seconds, ai_charge_count) VALUES (?, ?, ?, ?, ?)`, input.ProviderID, input.Name, input.Priority, input.TimeoutSeconds, input.AIChargeCount)
+	if input.BillingMode == "" {
+		input.BillingMode = BillingModeFixed
+	}
+	if input.TokenUnit == 0 {
+		input.TokenUnit = 1000
+	}
+	if input.CostUnitCents == 0 {
+		input.CostUnitCents = 1
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO ai_models (provider_id, name, priority, timeout_seconds, ai_charge_count, billing_mode, token_unit, cost_per_million_tokens_cents, cost_markup_percent, cost_unit_cents) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, input.ProviderID, input.Name, input.Priority, input.TimeoutSeconds, input.AIChargeCount, input.BillingMode, input.TokenUnit, input.CostPerMillionTokensCents, input.CostMarkupPercent, input.CostUnitCents)
 	if err != nil {
 		return 0, fmt.Errorf("create ai model: %w", err)
 	}
@@ -52,7 +61,7 @@ func (s *Store) CreateModel(ctx context.Context, input CreateModelInput) (uint64
 }
 
 func (s *Store) ListModels(ctx context.Context) ([]Model, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT m.id, m.provider_id, p.name, p.base_url, p.api_key_ciphertext, m.name, m.priority, m.timeout_seconds, m.ai_charge_count FROM ai_models m JOIN ai_providers p ON p.id = m.provider_id WHERE m.enabled = 1 AND p.enabled = 1 ORDER BY m.priority ASC, m.id ASC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT m.id, m.provider_id, p.name, p.base_url, p.api_key_ciphertext, m.name, m.priority, m.timeout_seconds, m.ai_charge_count, m.billing_mode, m.token_unit, m.cost_per_million_tokens_cents, m.cost_markup_percent, m.cost_unit_cents FROM ai_models m JOIN ai_providers p ON p.id = m.provider_id WHERE m.enabled = 1 AND p.enabled = 1 ORDER BY m.priority ASC, m.id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +69,7 @@ func (s *Store) ListModels(ctx context.Context) ([]Model, error) {
 	items := make([]Model, 0)
 	for rows.Next() {
 		var item Model
-		if err := rows.Scan(&item.ID, &item.ProviderID, &item.ProviderName, &item.BaseURL, &item.EncryptedKey, &item.Name, &item.Priority, &item.TimeoutSeconds, &item.AIChargeCount); err != nil {
+		if err := rows.Scan(&item.ID, &item.ProviderID, &item.ProviderName, &item.BaseURL, &item.EncryptedKey, &item.Name, &item.Priority, &item.TimeoutSeconds, &item.AIChargeCount, &item.BillingMode, &item.TokenUnit, &item.CostPerMillionTokensCents, &item.CostMarkupPercent, &item.CostUnitCents); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

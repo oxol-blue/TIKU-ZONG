@@ -1,11 +1,11 @@
 export default {
   project: {
-    title: "KOI-ADMIN"
+    title: "题库调用系统"
   },
   menu: {
     login: {
       auth: "登录",
-      title: "KOI-ADMIN 管理平台",
+      title: "题库调用系统",
       welcome: "欢迎登录",
       platform: "管理平台",
       description: "或许我们只是差点运气",
@@ -15,13 +15,13 @@ export default {
       beiAnHao: "网站备案号",
       picture: "看不清，换一张",
       form: {
-        loginName: "请输入用户名",
+        loginName: "请输入邮箱",
         password: "请输入密码",
         securityCode: "请输入验证码"
       },
       rules: {
         loginName: {
-          required: "用户名不能为空",
+          required: "邮箱不能为空",
           validator: "账号只能包含数字和字母"
         },
         password: {

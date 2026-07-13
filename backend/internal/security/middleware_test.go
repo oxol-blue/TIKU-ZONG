@@ -33,3 +33,11 @@ func TestRateLimitAndBlacklist(t *testing.T) {
 		t.Fatalf("blocked request status = %d", recorder.Code)
 	}
 }
+
+func TestRespCommand(t *testing.T) {
+	got := respCommand("EVAL", "return 1", "1", "key", "60")
+	want := "*5\r\n$4\r\nEVAL\r\n$8\r\nreturn 1\r\n$1\r\n1\r\n$3\r\nkey\r\n$2\r\n60\r\n"
+	if got != want {
+		t.Fatalf("unexpected RESP command: %q", got)
+	}
+}

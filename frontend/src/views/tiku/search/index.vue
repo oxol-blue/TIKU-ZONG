@@ -66,19 +66,13 @@
 import { onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { listMyPackages, searchQuestion, submitFeedback, type PackageInstance, type QuestionSearchResult } from "@/api/tiku";
+import { QUESTION_TYPES } from "@/constants/question";
 
 const loading = ref(false);
 const result = ref<QuestionSearchResult>();
 const packageInstances = ref<PackageInstance[]>([]);
 const form = reactive({ q: "", type: "", options: "", package_id: undefined as number | undefined });
-const questionTypes = [
-  { label: "选择题", value: "single" },
-  { label: "多选题", value: "multiple" },
-  { label: "判断题", value: "true_false" },
-  { label: "简答题", value: "short_answer" },
-  { label: "填空题", value: "fill_blank" },
-  { label: "其它", value: "other" }
-];
+const questionTypes = QUESTION_TYPES;
 
 const loadPackages = async () => {
   try {

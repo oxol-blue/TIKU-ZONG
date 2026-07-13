@@ -30,15 +30,28 @@ func (s *Store) SaveGateway(ctx context.Context, input GatewayInput) (Gateway, e
 	if input.Provider != ProviderEpay {
 		return Gateway{}, errors.New("unsupported payment provider")
 	}
-	ciphertext, err := secret.Encrypt(input.SecretKey, s.secret)
-	if err != nil {
-		return Gateway{}, err
+	input.SecretKey = strings.TrimSpace(input.SecretKey)
+	var ciphertext string
+	if input.SecretKey == "" {
+		err := s.db.QueryRowContext(ctx, `SELECT secret_ciphertext FROM payment_gateways WHERE provider = ?`, input.Provider).Scan(&ciphertext)
+		if errors.Is(err, sql.ErrNoRows) {
+			return Gateway{}, errors.New("secretKey is required when creating a payment gateway")
+		}
+		if err != nil {
+			return Gateway{}, err
+		}
+	} else {
+		var err error
+		ciphertext, err = secret.Encrypt(input.SecretKey, s.secret)
+		if err != nil {
+			return Gateway{}, err
+		}
 	}
 	enabled := 0
 	if input.Enabled {
 		enabled = 1
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO payment_gateways (provider, name, base_url, merchant_id, secret_ciphertext, enabled) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), base_url = VALUES(base_url), merchant_id = VALUES(merchant_id), secret_ciphertext = VALUES(secret_ciphertext), enabled = VALUES(enabled), updated_at = CURRENT_TIMESTAMP(6)`, input.Provider, input.Name, input.BaseURL, input.MerchantID, ciphertext, enabled)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO payment_gateways (provider, name, base_url, merchant_id, secret_ciphertext, enabled) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), base_url = VALUES(base_url), merchant_id = VALUES(merchant_id), secret_ciphertext = VALUES(secret_ciphertext), enabled = VALUES(enabled), updated_at = CURRENT_TIMESTAMP(6)`, input.Provider, input.Name, input.BaseURL, input.MerchantID, ciphertext, enabled)
 	if err != nil {
 		return Gateway{}, fmt.Errorf("save payment gateway: %w", err)
 	}
@@ -353,6 +366,20 @@ func (s *Store) RecordRefund(ctx context.Context, orderNo string, amount int, re
 		return Order{}, err
 	}
 	defer tx.Rollback()
+	var existingOrderNo string
+	err = tx.QueryRowContext(ctx, `SELECT o.order_no FROM payment_refunds r JOIN payment_orders o ON o.id = r.order_id WHERE r.refund_no = ?`, refundNo).Scan(&existingOrderNo)
+	if err == nil {
+		if existingOrderNo != orderNo {
+			return Order{}, errors.New("refund number belongs to another order")
+		}
+		if err := tx.Commit(); err != nil {
+			return Order{}, err
+		}
+		return s.GetOrder(ctx, orderNo)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return Order{}, err
+	}
 	var item Order
 	err = tx.QueryRowContext(ctx, `SELECT o.id, o.order_no, o.user_id, o.package_id, p.name, o.provider, COALESCE(o.coupon_id, 0), o.coupon_code, o.amount_cents, o.payable_cents, o.discount_cents, o.refunded_cents, o.status, o.provider_trade_no, o.package_instance_id, o.expires_at, o.paid_at, o.closed_at, o.created_at FROM payment_orders o JOIN packages p ON p.id = o.package_id WHERE o.order_no = ? FOR UPDATE`, orderNo).
 		Scan(&item.ID, &item.OrderNo, &item.UserID, &item.PackageID, &item.PackageName, &item.Provider, &item.CouponID, &item.CouponCode, &item.AmountCents, &item.PayableCents, &item.DiscountCents, &item.RefundedCents, &item.Status, &item.ProviderTradeNo, &item.PackageInstanceID, &item.ExpiresAt, &item.PaidAt, &item.ClosedAt, &item.CreatedAt)
@@ -390,4 +417,82 @@ func (s *Store) RecordRefund(ctx context.Context, orderNo string, amount int, re
 	item.RefundedCents = newRefunded
 	item.Status = status
 	return item, nil
+}
+
+func (s *Store) ListRefunds(ctx context.Context, orderNo string) ([]Refund, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT r.id, r.refund_no, o.order_no, r.amount_cents, r.reason, r.status, r.created_at
+		FROM payment_refunds r JOIN payment_orders o ON o.id = r.order_id WHERE o.order_no = ? ORDER BY r.id DESC`, orderNo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]Refund, 0)
+	for rows.Next() {
+		var item Refund
+		if err := rows.Scan(&item.ID, &item.RefundNo, &item.OrderNo, &item.AmountCents, &item.Reason, &item.Status, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) Reconcile(ctx context.Context, now time.Time) ([]ReconciliationIssue, error) {
+	issues := make([]ReconciliationIssue, 0)
+	rows, err := s.db.QueryContext(ctx, `SELECT order_no FROM payment_orders WHERE status IN (?, ?, ?) AND package_instance_id = 0`, OrderPaid, OrderPartialRefunded, OrderRefunded)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var orderNo string
+		if err := rows.Scan(&orderNo); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		issues = append(issues, ReconciliationIssue{OrderNo: orderNo, IssueType: "missing_package_instance", Detail: "paid order has no package instance"})
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	rows, err = s.db.QueryContext(ctx, `SELECT order_no FROM payment_orders WHERE status = ? AND expires_at <= ?`, OrderPending, now)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var orderNo string
+		if err := rows.Scan(&orderNo); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		issues = append(issues, ReconciliationIssue{OrderNo: orderNo, IssueType: "expired_pending", Detail: "pending order is past its expiry time"})
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	rows, err = s.db.QueryContext(ctx, `SELECT o.order_no, o.payable_cents, o.refunded_cents, COALESCE(SUM(r.amount_cents), 0)
+		FROM payment_orders o LEFT JOIN payment_refunds r ON r.order_id = o.id
+		WHERE o.status IN (?, ?) GROUP BY o.id, o.order_no, o.payable_cents, o.refunded_cents
+		HAVING COALESCE(SUM(r.amount_cents), 0) <> o.refunded_cents OR o.refunded_cents > o.payable_cents`, OrderPartialRefunded, OrderRefunded)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var orderNo string
+		var payable, recorded, refundTotal int
+		if err := rows.Scan(&orderNo, &payable, &recorded, &refundTotal); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		issues = append(issues, ReconciliationIssue{OrderNo: orderNo, IssueType: "refund_amount_mismatch", Detail: fmt.Sprintf("payable=%d recorded=%d refund_records=%d", payable, recorded, refundTotal)})
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	return issues, nil
 }

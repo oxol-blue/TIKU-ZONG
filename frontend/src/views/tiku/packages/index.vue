@@ -28,19 +28,34 @@
         <el-table-column prop="expiresAt" label="到期时间"><template #default="scope">{{ scope.row.expiresAt || '长期' }}</template></el-table-column>
       </el-table>
     </el-card>
+    <el-card shadow="never" class="tiku-card">
+      <template #header><div class="card-title"><span class="title">我的订单</span><el-button link type="primary" :loading="loadingOrders" @click="loadOrders">刷新订单</el-button></div></template>
+      <el-table v-if="orders.length" :data="orders" stripe>
+        <el-table-column prop="orderNo" label="订单号" min-width="210" />
+        <el-table-column prop="packageName" label="套餐" min-width="150" />
+        <el-table-column label="实付金额" width="110"><template #default="scope">¥{{ (scope.row.payableCents / 100).toFixed(2) }}</template></el-table-column>
+        <el-table-column prop="status" label="订单状态" width="130" />
+        <el-table-column label="退款" width="100"><template #default="scope">¥{{ (scope.row.refundedCents / 100).toFixed(2) }}</template></el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" min-width="180" />
+        <el-table-column prop="paidAt" label="支付时间" min-width="180"><template #default="scope">{{ scope.row.paidAt || '-' }}</template></el-table-column>
+      </el-table>
+      <el-empty v-else description="暂无订单记录" />
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { createOrder, listMyPackages, listPackages, type PackageInstance, type PackageItem } from "@/api/tiku";
+import { createOrder, listMyOrders, listMyPackages, listPackages, type OrderItem, type PackageInstance, type PackageItem } from "@/api/tiku";
 
 const packages = ref<PackageItem[]>([]);
 const instances = ref<PackageInstance[]>([]);
 const loading = ref(false);
 const buying = ref<number>();
 const couponCode = ref("");
+const orders = ref<OrderItem[]>([]);
+const loadingOrders = ref(false);
 const typeText = (type: string) => ({ time: "时间套餐", count: "次数套餐", time_count: "时间次数套餐" }[type] || type);
 const durationText = (seconds: number) => seconds >= 86400 ? `${Math.floor(seconds / 86400)} 天` : `${Math.floor(seconds / 3600)} 小时`;
 const load = async () => {
@@ -49,7 +64,12 @@ const load = async () => {
     const [catalog, mine] = await Promise.all([listPackages(), listMyPackages()]);
     packages.value = catalog.data ?? [];
     instances.value = mine.data ?? [];
+    await loadOrders();
   } finally { loading.value = false; }
+};
+const loadOrders = async () => {
+  loadingOrders.value = true;
+  try { orders.value = (await listMyOrders()).data ?? []; } finally { loadingOrders.value = false; }
 };
 const buy = async (item: PackageItem) => {
   buying.value = item.id;
@@ -65,6 +85,6 @@ onMounted(load);
 <style scoped lang="scss">
 .tiku-page { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.heading-actions { display: flex; align-items: center; gap: 8px; }.tags { display: flex; gap: 4px; }
-h2 { margin: 0; color: var(--el-text-color-primary); } p { margin: 6px 0 0; color: var(--el-text-color-secondary); }
+h2 { margin: 0; color: var(--el-text-color-primary); } p { margin: 6px 0 0; color: var(--el-text-color-secondary); }.card-title { display: flex; align-items: center; justify-content: space-between; }
 .package-col { margin-bottom: 16px; }.package-card { height: 100%; border-radius: 10px; }.package-head { display: flex; justify-content: space-between; gap: 8px; }.package-name, .title { font-weight: 700; color: var(--el-text-color-primary); }.price { margin: 20px 0 8px; color: var(--el-color-primary); font-size: 30px; font-weight: 800; }.package-card ul { min-height: 72px; padding-left: 18px; color: var(--el-text-color-secondary); line-height: 1.9; }.buy-button { width: 100%; }.tiku-card { border-radius: 10px; }
 </style>

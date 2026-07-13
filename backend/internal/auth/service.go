@@ -108,6 +108,34 @@ func (s *Service) Login(ctx context.Context, email, password, captchaID, captcha
 	return s.issueSession(ctx, user)
 }
 
+func (s *Service) ChangePassword(ctx context.Context, userID uint64, currentPassword, newPassword string) error {
+	if err := validatePasswordChange(currentPassword, newPassword); err != nil {
+		return err
+	}
+	user, passwordHash, err := s.store.GetUserByIDWithPassword(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user.Status != 1 || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(currentPassword)) != nil {
+		return ErrInvalidCredentials
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	if err := s.store.UpdatePassword(ctx, userID, string(hash)); err != nil {
+		return err
+	}
+	return s.store.RevokeRefreshTokens(ctx, userID)
+}
+
+func validatePasswordChange(currentPassword, newPassword string) error {
+	if currentPassword == "" || len(newPassword) < 8 || len(newPassword) > 72 || currentPassword == newPassword {
+		return ErrInvalidInput
+	}
+	return nil
+}
+
 func (s *Service) Refresh(ctx context.Context, plainRefreshToken string) (Session, error) {
 	if plainRefreshToken == "" {
 		return Session{}, ErrInvalidCredentials
@@ -145,6 +173,10 @@ func (s *Service) GetAPIKey(ctx context.Context, userID uint64) (APIKeyView, err
 
 func (s *Service) CreateAPIKey(ctx context.Context, userID uint64) (string, APIKeyView, error) {
 	return s.store.CreateAPIKey(ctx, userID)
+}
+
+func (s *Service) RotateAPIKey(ctx context.Context, userID uint64) (string, APIKeyView, error) {
+	return s.store.RotateAPIKey(ctx, userID)
 }
 
 func (s *Service) AuthenticateAPIKey(ctx context.Context, plain string) (User, uint64, error) {

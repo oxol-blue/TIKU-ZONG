@@ -33,3 +33,11 @@ func (s *Service) Create(ctx context.Context, userID uint64, input Input) error 
 	}
 	return s.store.Create(ctx, userID, input)
 }
+
+func (s *Service) ListByUser(ctx context.Context, userID uint64, limit int) ([]Item, error) {
+	return s.store.ListByUser(ctx, userID, limit)
+}
+
+func (s *Service) ListAdmin(ctx context.Context, feedbackType, search string, page, pageSize int) (Page, error) {
+	return s.store.ListAdmin(ctx, feedbackType, search, page, pageSize)
+}

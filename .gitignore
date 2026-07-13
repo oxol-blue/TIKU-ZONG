@@ -22,9 +22,10 @@ backend/bin/
 backend/tmp/
 backend/coverage.out
 backend/coverage.html
+backend/.gocache/
+.gocache/
 
 # Logs and local data
 *.log
 *.sqlite
 *.sqlite3
-

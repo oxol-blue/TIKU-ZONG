@@ -78,10 +78,18 @@ func (h *Handler) Search(c *gin.Context) {
 			}
 		}
 		if h.ai != nil {
+			packageID, _ := strconv.ParseUint(c.Query("package_id"), 10, 64)
+			if h.billing != nil {
+				available, quotaErr := h.billing.HasAIQuota(c.Request.Context(), current.ID, packageID)
+				if quotaErr != nil || !available {
+					h.log(c, requestID, current.ID, keyID, query, false, http.StatusPaymentRequired, "NO_AI_QUOTA", started)
+					c.JSON(http.StatusPaymentRequired, gin.H{"code": "NO_AI_QUOTA", "message": "an available AI package quota is required"})
+					return
+				}
+			}
 			aiAnswer, aiErr := h.ai.Solve(c.Request.Context(), query, questionType, options)
 			if aiErr == nil {
 				if h.billing != nil {
-					packageID, _ := strconv.ParseUint(c.Query("package_id"), 10, 64)
 					if _, consumeErr := h.billing.Consume(c.Request.Context(), current.ID, packageID, billing.UsageAI, requestID, "/api/v1/search", aiAnswer.ChargeCount); consumeErr != nil {
 						h.log(c, requestID, current.ID, keyID, query, false, http.StatusPaymentRequired, "NO_AI_QUOTA", started)
 						c.JSON(http.StatusPaymentRequired, gin.H{"code": "NO_AI_QUOTA", "message": "an available AI package quota is required"})
@@ -174,6 +182,31 @@ func (h *Handler) Import(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "imported", "data": gin.H{"created": created, "duplicates": duplicates}})
+}
+
+// ImportFile accepts a CSV or XLSX workbook with Chinese or English column names.
+func (h *Handler) ImportFile(c *gin.Context) {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_FILE", "message": "file is required"})
+		return
+	}
+	items, report, err := parseImportFile(fileHeader)
+	if err != nil {
+		if report.Total > 0 && report.Invalid > 0 {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "message": "no valid rows", "data": report})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_FILE", "message": err.Error(), "data": report})
+		return
+	}
+	created, duplicates, err := h.service.Import(c.Request.Context(), items)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "IMPORT_FAILED", "message": err.Error(), "data": report})
+		return
+	}
+	report.Created, report.Duplicates = created, duplicates
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "imported", "data": report})
 }
 
 func (h *Handler) AdminList(c *gin.Context) {
