@@ -42,7 +42,7 @@ type Session struct {
 	ExpiresIn    int64  `json:"expiresIn"`
 }
 
-func (s *Service) Register(ctx context.Context, email, password string) (Session, error) {
+func (s *Service) Register(ctx context.Context, email, password string, inviteCodes ...string) (Session, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !validEmail(email) || len(password) < 8 || len(password) > 72 {
 		return Session{}, ErrInvalidInput
@@ -51,11 +51,23 @@ func (s *Service) Register(ctx context.Context, email, password string) (Session
 	if err != nil {
 		return Session{}, err
 	}
-	user, err := s.store.CreateUser(ctx, email, string(passwordHash))
+	inviteCode := ""
+	if len(inviteCodes) > 0 {
+		inviteCode = inviteCodes[0]
+	}
+	user, err := s.store.CreateUserWithInvite(ctx, email, string(passwordHash), inviteCode)
 	if err != nil {
 		return Session{}, err
 	}
 	return s.issueSession(ctx, user)
+}
+
+func (s *Service) CreateInvite(ctx context.Context, actorID uint64, input CreateInviteInput) (InviteView, error) {
+	return s.store.CreateInvite(ctx, actorID, input)
+}
+
+func (s *Service) ListInvites(ctx context.Context) ([]InviteView, error) {
+	return s.store.ListInvites(ctx)
 }
 
 func (s *Service) Login(ctx context.Context, email, password, captchaID, captchaCode string) (Session, error) {

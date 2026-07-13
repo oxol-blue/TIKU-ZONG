@@ -21,6 +21,7 @@ type credentialsRequest struct {
 	Password    string `json:"password" binding:"required"`
 	CaptchaID   string `json:"captchaId"`
 	CaptchaCode string `json:"captchaCode"`
+	InviteCode  string `json:"inviteCode"`
 }
 
 type refreshRequest struct {
@@ -44,12 +45,38 @@ func (h *Handler) Register(c *gin.Context) {
 		serviceUnavailable(c)
 		return
 	}
-	session, err := h.service.Register(c.Request.Context(), request.Email, request.Password)
+	session, err := h.service.Register(c.Request.Context(), request.Email, request.Password, request.InviteCode)
 	if err != nil {
 		handleAuthError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "registered", "data": session})
+}
+
+func (h *Handler) AdminCreateInvite(c *gin.Context) {
+	actor, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	var request CreateInviteInput
+	if !bindJSON(c, &request) {
+		return
+	}
+	item, err := h.service.CreateInvite(c.Request.Context(), actor.ID, request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVITE_CREATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "created", "data": item})
+}
+
+func (h *Handler) AdminListInvites(c *gin.Context) {
+	items, err := h.service.ListInvites(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load invitation codes"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -318,6 +345,8 @@ func handleAuthError(c *gin.Context, err error) {
 		status, code, message = http.StatusForbidden, "ACCOUNT_DISABLED", "account is disabled"
 	case errors.Is(err, ErrCaptchaRequired):
 		status, code, message = http.StatusBadRequest, "CAPTCHA_REQUIRED", "captcha is required or invalid"
+	case errors.Is(err, ErrInviteInvalid):
+		status, code, message = http.StatusBadRequest, "INVITE_INVALID", "invitation code is invalid or unavailable"
 	}
 	c.AbortWithStatusJSON(status, gin.H{"code": code, "message": message})
 }

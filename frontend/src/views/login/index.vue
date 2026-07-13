@@ -81,9 +81,9 @@
           </div>
 
           <div class="form-header text-center m-b-32px">
-            <h3 class="text-24px font-700 m-b-8px text-[--el-text-color-primary]">{{ $t("menu.login.account") }}</h3>
+            <h3 class="text-24px font-700 m-b-8px text-[--el-text-color-primary]">{{ isRegister ? "注册账号" : $t("menu.login.account") }}</h3>
             <p class="text-14px text-[--el-text-color-regular]">
-              {{ $t("menu.login.form.loginName") }} / {{ $t("menu.login.form.password") }}
+              {{ isRegister ? "使用邮箱和密码注册" : `${$t("menu.login.form.loginName")} / ${$t("menu.login.form.password")}` }}
             </p>
           </div>
 
@@ -117,7 +117,13 @@
               </el-input>
             </el-form-item>
 
-            <el-form-item prop="securityCode">
+            <el-form-item v-if="isRegister" prop="inviteCode">
+              <el-input v-model="loginForm.inviteCode" type="text" placeholder="邀请码（可选）" size="large" class="login-input">
+                <template #prefix><el-icon :size="16"><Postcard /></el-icon></template>
+              </el-input>
+            </el-form-item>
+
+            <el-form-item v-if="!isRegister" prop="securityCode">
               <div class="login-verify-wrap flex flex-col sm:flex-row items-start sm:items-center gap-12px w-full">
                 <el-input
                   v-model="loginForm.securityCode"
@@ -157,17 +163,20 @@
                 class="login-btn w-100% tracking-4px"
                 size="large"
                 :loading="loading"
-                v-throttle:3000="handleKoiLogin"
+                v-throttle:3000="handleSubmit"
               >
-                {{ loading ? $t("menu.login.loading") : $t("menu.login.in") }}
+                {{ loading ? $t("menu.login.loading") : isRegister ? "注册" : $t("menu.login.in") }}
               </el-button>
             </el-form-item>
 
             <div class="flex flex-justify-center m-t-12px">
-              <el-button text size="small" @click="handleCaptcha">
+              <el-button text size="small" @click="isRegister ? (isRegister = false) : handleCaptcha()">
                 <span class="text-13px text-[--el-text-color-secondary] hover:text-[--el-color-primary] select-none transition-colors">
                   {{ $t("menu.login.picture") }}
                 </span>
+              </el-button>
+              <el-button text size="small" @click="isRegister = !isRegister">
+                <span class="text-13px text-[--el-text-color-secondary] hover:text-[--el-color-primary] select-none transition-colors">{{ isRegister ? "返回登录" : "注册账号" }}</span>
               </el-button>
             </div>
           </el-form>
@@ -195,7 +204,7 @@ import type { FormInstance, FormRules } from "element-plus";
 import { koiMsgWarning, koiMsgError } from "@/utils/koi.ts";
 import { useRouter } from "vue-router";
 // import { koiLogin, getCaptcha } from "@/api/system/login/index.ts";
-import { getCaptcha, login } from "@/api/auth/index.ts";
+import { getCaptcha, login, register } from "@/api/auth/index.ts";
 import useUserStore from "@/stores/modules/user.ts";
 import useAuthStore from "@/stores/modules/auth.ts";
 import useKeepAliveStore from "@/stores/modules/keepAlive.ts";
@@ -219,6 +228,7 @@ const keepAliveStore = useKeepAliveStore();
 const router = useRouter();
 const loginFormRef = ref<FormInstance>();
 const loading = ref(false);
+const isRegister = ref(false);
 
 interface ILoginUser {
   loginName: string;
@@ -226,6 +236,7 @@ interface ILoginUser {
   securityCode: string | number;
   codeKey: string | number;
   captchaPicture: any;
+  inviteCode: string;
 }
 
 const loginForm = reactive<ILoginUser>({
@@ -233,7 +244,8 @@ const loginForm = reactive<ILoginUser>({
   password: "",
   securityCode: "",
   codeKey: "",
-  captchaPicture: ""
+  captchaPicture: "",
+  inviteCode: ""
 });
 
 const loginRules: any = reactive<FormRules<ILoginUser>>({
@@ -374,6 +386,24 @@ const handleKoiLogin = () => {
     }
   });
 };
+
+const handleRegister = async () => {
+  if (!loginFormRef.value) return;
+  const valid = await loginFormRef.value.validate().catch(() => false);
+  if (!valid) return;
+  loading.value = true;
+  try {
+    const res = await register({ email: loginForm.loginName, password: String(loginForm.password), inviteCode: loginForm.inviteCode.trim() || undefined });
+    userStore.setToken(res.data.accessToken);
+    userStore.setRefreshToken(res.data.refreshToken);
+    await initDynamicRouter();
+    await router.replace(HOME_URL);
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleSubmit = () => isRegister.value ? handleRegister() : handleKoiLogin();
 </script>
 
 <style lang="scss" scoped>

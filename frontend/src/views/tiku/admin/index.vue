@@ -83,6 +83,16 @@
           <el-button type="primary" @click="saveCoupon">创建优惠券</el-button>
         </el-tab-pane>
 
+        <el-tab-pane label="邀请码" name="invites">
+          <el-form :model="inviteForm" label-position="top" class="form-grid">
+            <el-form-item label="邀请码"><el-input v-model="inviteForm.code" placeholder="例如 NEWUSER2026" /></el-form-item>
+            <el-form-item label="最大使用次数"><el-input-number v-model="inviteForm.maxUses" :min="0" /></el-form-item>
+            <el-form-item label="到期时间"><el-date-picker v-model="inviteForm.expiresAt" type="datetime" value-format="YYYY-MM-DDTHH:mm:ssZ" placeholder="不填表示长期有效" /></el-form-item>
+          </el-form>
+          <el-button type="primary" @click="saveInvite">创建邀请码</el-button>
+          <el-table :data="invites" stripe class="table"><el-table-column prop="code" label="邀请码" /><el-table-column prop="usedCount" label="已使用" width="100" /><el-table-column label="次数上限" width="110"><template #default="scope">{{ scope.row.maxUses || '不限' }}</template></el-table-column><el-table-column prop="expiresAt" label="到期时间" /><el-table-column label="状态" width="90"><template #default="scope"><el-tag :type="scope.row.status === 1 ? 'success' : 'info'">{{ scope.row.status === 1 ? '启用' : '停用' }}</el-tag></template></el-table-column></el-table>
+        </el-tab-pane>
+
         <el-tab-pane label="用户管理" name="users">
           <div class="toolbar">
             <el-input v-model="userSearch" clearable placeholder="按邮箱搜索" @keyup.enter="refreshUsers" />
@@ -185,7 +195,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, getAdminAiAnswer, getAdminQuestion, listAdminAiAnswers, listAdminCalls, listAdminOrders, listAdminUsers, listAdminQuestions, listAiModels, listOcsSources, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, type AdminAiAnswer, type AdminCallLog, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem } from "@/api/tiku";
+import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createInvite, createOcsSource, getAdminAiAnswer, getAdminQuestion, listAdminAiAnswers, listAdminCalls, listAdminOrders, listAdminUsers, listAdminQuestions, listAiModels, listInvites, listOcsSources, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, type AdminAiAnswer, type AdminCallLog, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem, type InviteItem } from "@/api/tiku";
 
 const activeTab = ref("ocs");
 const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
@@ -232,12 +242,15 @@ const aiStatus = ref<number | undefined>();
 const aiPage = ref(1);
 const aiPageSize = ref(20);
 const aiTotal = ref(0);
+const invites = ref<InviteItem[]>([]);
+const inviteForm = reactive({ code: "", maxUses: 0, expiresAt: "", status: 1 });
 const refresh = async () => { ocsSources.value = (await listOcsSources()).data ?? []; models.value = (await listAiModels()).data ?? []; };
 const refreshUsers = async () => { const result = await listAdminUsers({ page: userPage.value, pageSize: userPageSize.value, search: userSearch.value || undefined, status: userStatus.value }); users.value = result.data?.items ?? []; userTotal.value = result.data?.total ?? 0; };
 const refreshQuestions = async () => { const result = await listAdminQuestions({ page: questionPage.value, pageSize: questionPageSize.value, search: questionSearch.value || undefined, subject: questionSubject.value || undefined, type: questionType.value || undefined, status: questionStatus.value }); questions.value = result.data?.items ?? []; questionTotal.value = result.data?.total ?? 0; };
 const refreshOrders = async () => { const result = await listAdminOrders({ page: orderPage.value, pageSize: orderPageSize.value, search: orderSearch.value || undefined, status: orderStatus.value || undefined }); orders.value = result.data?.items ?? []; orderTotal.value = result.data?.total ?? 0; };
 const refreshCalls = async () => { callLogs.value = (await listAdminCalls()).data ?? []; };
 const refreshAiAnswers = async () => { const result = await listAdminAiAnswers({ page: aiPage.value, pageSize: aiPageSize.value, search: aiSearch.value || undefined, provider: aiProvider.value || undefined, model: aiModel.value || undefined, status: aiStatus.value }); aiAnswers.value = result.data?.items ?? []; aiTotal.value = result.data?.total ?? 0; };
+const refreshInvites = async () => { invites.value = (await listInvites()).data ?? []; };
 const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
@@ -253,7 +266,8 @@ const closeOrders = async () => { const result = await closeExpiredOrders(); ElM
 const refund = async (order: AdminOrderItem) => { const value = window.prompt(`请输入退款金额（分），最多 ${order.payableCents - order.refundedCents}`); const amount = Number(value); if (!Number.isInteger(amount) || amount <= 0) return; await refundOrder(order.orderNo, { amountCents: amount, reason: "管理员后台退款" }); ElMessage.success("退款已记录"); await refreshOrders(); };
 const toggleAiAnswer = async (answer: AdminAiAnswer) => { await updateAdminAiAnswerStatus(answer.id, answer.status === 1 ? 0 : 1); ElMessage.success("AI 答案状态已更新"); await refreshAiAnswers(); };
 const showAiAnswer = async (id: number) => { aiDetail.value = (await getAdminAiAnswer(id)).data; aiDialog.value = true; };
-onMounted(async () => { await refresh(); await refreshUsers(); await refreshQuestions(); await refreshOrders(); await refreshCalls(); await refreshAiAnswers(); });
+const saveInvite = async () => { await createInvite({ ...inviteForm, expiresAt: inviteForm.expiresAt || undefined }); ElMessage.success("邀请码已创建"); inviteForm.code = ""; await refreshInvites(); };
+onMounted(async () => { await refresh(); await refreshUsers(); await refreshQuestions(); await refreshOrders(); await refreshCalls(); await refreshAiAnswers(); await refreshInvites(); });
 </script>
 
 <style scoped lang="scss">

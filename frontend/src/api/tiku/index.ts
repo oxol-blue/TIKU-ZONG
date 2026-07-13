@@ -117,6 +117,19 @@ export const updateAdminUserStatus = (id: number, status: number) =>
 export const updateAdminUserRole = (id: number, role: "admin" | "user") =>
   koi.patch<{ code: number; message: string }>(`/api/v1/admin/users/${id}/role`, { role });
 
+export interface InviteItem {
+  id: number;
+  code: string;
+  maxUses: number;
+  usedCount: number;
+  status: number;
+  expiresAt?: string;
+  createdAt: string;
+}
+export const listInvites = () => koi.get<{ code: number; message: string; data: InviteItem[] }>("/api/v1/admin/invites");
+export const createInvite = (data: { code: string; maxUses: number; expiresAt?: string; status: number }) =>
+  koi.post<{ code: number; message: string; data: InviteItem }>("/api/v1/admin/invites", data);
+
 export interface AdminQuestionItem {
   id: number;
   question: string;

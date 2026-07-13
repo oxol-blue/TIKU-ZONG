@@ -10,6 +10,7 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrInviteInvalid = errors.New("invitation code is invalid or unavailable")
 
 type Store struct {
 	db *sql.DB
@@ -27,6 +28,94 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash string) (Use
 		return User{}, fmt.Errorf("read user id: %w", err)
 	}
 	return s.GetUserByID(ctx, uint64(id))
+}
+
+func (s *Store) CreateUserWithInvite(ctx context.Context, email, passwordHash, inviteCode string) (User, error) {
+	inviteCode = strings.ToUpper(strings.TrimSpace(inviteCode))
+	if inviteCode == "" {
+		return s.CreateUser(ctx, email, passwordHash)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return User{}, err
+	}
+	defer tx.Rollback()
+	var inviteID uint64
+	var maxUses, usedCount, status int
+	var expiresAt *time.Time
+	err = tx.QueryRowContext(ctx, `SELECT id, max_uses, used_count, status, expires_at FROM invitation_codes WHERE code = ? FOR UPDATE`, inviteCode).
+		Scan(&inviteID, &maxUses, &usedCount, &status, &expiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, ErrInviteInvalid
+	}
+	if err != nil {
+		return User{}, err
+	}
+	if status != 1 || (maxUses > 0 && usedCount >= maxUses) || expiresAt != nil && !time.Now().UTC().Before(*expiresAt) {
+		return User{}, ErrInviteInvalid
+	}
+	result, err := tx.ExecContext(ctx, `INSERT INTO users (email, password_hash) VALUES (?, ?)`, email, passwordHash)
+	if err != nil {
+		return User{}, fmt.Errorf("create user: %w", err)
+	}
+	userID, err := result.LastInsertId()
+	if err != nil {
+		return User{}, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE invitation_codes SET used_count = used_count + 1 WHERE id = ?`, inviteID); err != nil {
+		return User{}, err
+	}
+	if err = tx.Commit(); err != nil {
+		return User{}, err
+	}
+	return s.GetUserByID(ctx, uint64(userID))
+}
+
+func (s *Store) CreateInvite(ctx context.Context, actorID uint64, input CreateInviteInput) (InviteView, error) {
+	code := strings.ToUpper(strings.TrimSpace(input.Code))
+	if code == "" || len(code) > 64 || input.MaxUses < 0 {
+		return InviteView{}, ErrInvalidInput
+	}
+	status := input.Status
+	if status != 0 && status != 1 {
+		status = 1
+	}
+	result, err := s.db.ExecContext(ctx, `INSERT INTO invitation_codes (code, max_uses, expires_at, status, created_by) VALUES (?, ?, ?, ?, ?)`, code, input.MaxUses, input.ExpiresAt, status, actorID)
+	if err != nil {
+		return InviteView{}, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return InviteView{}, err
+	}
+	return s.GetInvite(ctx, uint64(id))
+}
+
+func (s *Store) ListInvites(ctx context.Context) ([]InviteView, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, code, max_uses, used_count, status, expires_at, COALESCE(created_by, 0), created_at FROM invitation_codes ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]InviteView, 0)
+	for rows.Next() {
+		var item InviteView
+		if err := rows.Scan(&item.ID, &item.Code, &item.MaxUses, &item.UsedCount, &item.Status, &item.ExpiresAt, &item.CreatedBy, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) GetInvite(ctx context.Context, id uint64) (InviteView, error) {
+	var item InviteView
+	err := s.db.QueryRowContext(ctx, `SELECT id, code, max_uses, used_count, status, expires_at, COALESCE(created_by, 0), created_at FROM invitation_codes WHERE id = ?`, id).
+		Scan(&item.ID, &item.Code, &item.MaxUses, &item.UsedCount, &item.Status, &item.ExpiresAt, &item.CreatedBy, &item.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return InviteView{}, ErrNotFound
+	}
+	return item, err
 }
 
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (User, string, error) {

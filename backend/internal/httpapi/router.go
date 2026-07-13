@@ -83,6 +83,8 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.GET("/admin/questions/:id", adminOnly, questionHandler.AdminDetail)
 	protected.PATCH("/admin/questions/:id/status", adminOnly, questionHandler.AdminUpdateStatus)
 	protected.GET("/admin/users", adminOnly, authHandler.AdminUsers)
+	protected.POST("/admin/invites", adminOnly, authHandler.AdminCreateInvite)
+	protected.GET("/admin/invites", adminOnly, authHandler.AdminListInvites)
 	protected.PATCH("/admin/users/:id/status", adminOnly, authHandler.AdminUpdateUserStatus)
 	protected.PATCH("/admin/users/:id/role", adminOnly, authHandler.AdminUpdateUserRole)
 	protected.GET("/packages/my", billingHandler.MyPackages)

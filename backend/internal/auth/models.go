@@ -43,3 +43,21 @@ type AdminUserPage struct {
 	PageSize int             `json:"pageSize"`
 	Total    int             `json:"total"`
 }
+
+type CreateInviteInput struct {
+	Code      string     `json:"code" binding:"required"`
+	MaxUses   int        `json:"maxUses"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	Status    int        `json:"status"`
+}
+
+type InviteView struct {
+	ID        uint64     `json:"id"`
+	Code      string     `json:"code"`
+	MaxUses   int        `json:"maxUses"`
+	UsedCount int        `json:"usedCount"`
+	Status    int        `json:"status"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	CreatedBy uint64     `json:"createdBy,omitempty"`
+	CreatedAt time.Time  `json:"createdAt"`
+}
