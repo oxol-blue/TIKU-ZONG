@@ -18,6 +18,7 @@ var (
 	ErrAccountDisabled    = errors.New("account disabled")
 	ErrInvalidInput       = errors.New("invalid input")
 	ErrCaptchaRequired    = errors.New("captcha required or invalid")
+	ErrSelfModification   = errors.New("administrator cannot disable or demote self")
 )
 
 type Service struct {
@@ -139,6 +140,30 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, plain string) (User, u
 		return User{}, 0, ErrInvalidCredentials
 	}
 	return s.store.ResolveAPIKey(ctx, plain)
+}
+
+func (s *Service) ListUsers(ctx context.Context, search string, status, page, pageSize int) (AdminUserPage, error) {
+	return s.store.ListUsers(ctx, search, status, page, pageSize)
+}
+
+func (s *Service) UpdateUserStatus(ctx context.Context, actorID, userID uint64, status int) error {
+	if status != 0 && status != 1 {
+		return ErrInvalidInput
+	}
+	if actorID == userID && status == 0 {
+		return ErrSelfModification
+	}
+	return s.store.UpdateStatus(ctx, userID, status)
+}
+
+func (s *Service) UpdateUserRole(ctx context.Context, actorID, userID uint64, role string) error {
+	if role != RoleUser && role != RoleAdmin {
+		return ErrInvalidInput
+	}
+	if actorID == userID && role != RoleAdmin {
+		return ErrSelfModification
+	}
+	return s.store.UpdateRole(ctx, userID, role)
 }
 
 func (s *Service) issueSession(ctx context.Context, user User) (Session, error) {

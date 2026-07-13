@@ -96,3 +96,22 @@ export const createAdminPackage = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: PackageItem }>("/api/v1/admin/packages", data);
 export const createCoupon = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/coupons", data);
+
+export interface AdminUserItem {
+  id: number;
+  email: string;
+  role: "admin" | "user";
+  status: number;
+  failedLoginCount: number;
+  lockedUntil?: string;
+  lastLoginAt?: string;
+  createdAt: string;
+  apiKeyPrefix?: string;
+}
+
+export const listAdminUsers = (params: { page?: number; pageSize?: number; search?: string; status?: number }) =>
+  koi.get<{ code: number; message: string; data: { items: AdminUserItem[]; page: number; pageSize: number; total: number } }>("/api/v1/admin/users", params);
+export const updateAdminUserStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/users/${id}/status`, { status });
+export const updateAdminUserRole = (id: number, role: "admin" | "user") =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/users/${id}/role`, { role });

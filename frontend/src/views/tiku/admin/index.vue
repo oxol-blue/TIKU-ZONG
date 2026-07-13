@@ -65,6 +65,33 @@
           </el-form>
           <el-button type="primary" @click="saveCoupon">创建优惠券</el-button>
         </el-tab-pane>
+
+        <el-tab-pane label="用户管理" name="users">
+          <div class="toolbar">
+            <el-input v-model="userSearch" clearable placeholder="按邮箱搜索" @keyup.enter="refreshUsers" />
+            <el-select v-model="userStatus" clearable placeholder="全部状态" @change="refreshUsers">
+              <el-option label="正常" :value="1" /><el-option label="禁用" :value="0" />
+            </el-select>
+            <el-button type="primary" @click="refreshUsers">查询</el-button>
+          </div>
+          <el-table :data="users" stripe class="table">
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column prop="email" label="邮箱" min-width="220" />
+            <el-table-column label="角色" width="130">
+              <template #default="scope"><el-select :model-value="scope.row.role" size="small" @change="changeRole(scope.row, $event)"><el-option label="用户" value="user" /><el-option label="管理员" value="admin" /></el-select></template>
+            </el-table-column>
+            <el-table-column label="状态" width="110">
+              <template #default="scope"><el-tag :type="scope.row.status === 1 ? 'success' : 'danger'">{{ scope.row.status === 1 ? '正常' : '禁用' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column prop="apiKeyPrefix" label="API Key" width="150" />
+            <el-table-column prop="lastLoginAt" label="最近登录" min-width="180" />
+            <el-table-column prop="createdAt" label="注册时间" min-width="180" />
+            <el-table-column label="操作" width="110" fixed="right">
+              <template #default="scope"><el-button link :type="scope.row.status === 1 ? 'danger' : 'success'" @click="toggleStatus(scope.row)">{{ scope.row.status === 1 ? '禁用' : '启用' }}</el-button></template>
+            </el-table-column>
+          </el-table>
+          <div class="pagination"><el-pagination v-model:current-page="userPage" v-model:page-size="userPageSize" layout="total, sizes, prev, pager, next" :total="userTotal" @current-change="refreshUsers" @size-change="refreshUsers" /></div>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -73,7 +100,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, listAiModels, listOcsSources } from "@/api/tiku";
+import { configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, listAdminUsers, listAiModels, listOcsSources, updateAdminUserRole, updateAdminUserStatus, type AdminUserItem } from "@/api/tiku";
 
 const activeTab = ref("ocs");
 const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
@@ -86,7 +113,14 @@ const modelForm = reactive({ providerId: 1, name: "", priority: 100, aiChargeCou
 const gatewayForm = reactive({ name: "易支付", baseUrl: "", merchantId: "", secretKey: "" });
 const packageForm = reactive({ name: "", type: "count", totalCount: 100, aiCount: 0, priceCents: 0, limitCount: 0 });
 const couponForm = reactive({ code: "", discountType: "percent", discountValue: 10, totalLimit: 0 });
+const users = ref<AdminUserItem[]>([]);
+const userSearch = ref("");
+const userStatus = ref<number | undefined>();
+const userPage = ref(1);
+const userPageSize = ref(20);
+const userTotal = ref(0);
 const refresh = async () => { ocsSources.value = (await listOcsSources()).data ?? []; models.value = (await listAiModels()).data ?? []; };
+const refreshUsers = async () => { const result = await listAdminUsers({ page: userPage.value, pageSize: userPageSize.value, search: userSearch.value || undefined, status: userStatus.value }); users.value = result.data?.items ?? []; userTotal.value = result.data?.total ?? 0; };
 const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
@@ -94,9 +128,11 @@ const saveModel = async () => { await createAiModel(modelForm); ElMessage.succes
 const saveGateway = async () => { await configurePaymentGateway({ provider: "epay", enabled: true, ...gatewayForm }); ElMessage.success("支付网关已保存"); };
 const savePackage = async () => { await createAdminPackage(packageForm); ElMessage.success("套餐已创建"); };
 const saveCoupon = async () => { await createCoupon(couponForm); ElMessage.success("优惠券已创建"); };
-onMounted(refresh);
+const toggleStatus = async (user: AdminUserItem) => { await updateAdminUserStatus(user.id, user.status === 1 ? 0 : 1); ElMessage.success("用户状态已更新"); await refreshUsers(); };
+const changeRole = async (user: AdminUserItem, role: "admin" | "user") => { try { await updateAdminUserRole(user.id, role); ElMessage.success("用户角色已更新"); } catch { await refreshUsers(); } };
+onMounted(async () => { await refresh(); await refreshUsers(); });
 </script>
 
 <style scoped lang="scss">
-.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.table { margin-top: 18px; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.toolbar { display: flex; gap: 12px; max-width: 620px; }.toolbar .el-select { width: 150px; }.table { margin-top: 18px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; }.toolbar { flex-wrap: wrap; } }
 </style>

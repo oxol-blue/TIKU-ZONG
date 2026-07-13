@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -62,6 +63,82 @@ func (s *Store) GetUserByID(ctx context.Context, id uint64) (User, error) {
 func (s *Store) SetRole(ctx context.Context, userID uint64, role string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, userID)
 	return err
+}
+
+func (s *Store) ListUsers(ctx context.Context, search string, status, page, pageSize int) (AdminUserPage, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	search = strings.TrimSpace(search)
+	where := "WHERE 1 = 1"
+	args := make([]any, 0, 4)
+	if search != "" {
+		where += " AND email LIKE ?"
+		args = append(args, "%"+search+"%")
+	}
+	if status == 0 || status == 1 {
+		where += " AND status = ?"
+		args = append(args, status)
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users "+where, args...).Scan(&total); err != nil {
+		return AdminUserPage{}, err
+	}
+	args = append(args, (page-1)*pageSize, pageSize)
+	rows, err := s.db.QueryContext(ctx, `SELECT u.id, u.email, u.role, u.status, u.failed_login_count,
+		u.locked_until, u.last_login_at, u.created_at, COALESCE(k.key_prefix, '')
+		FROM users u LEFT JOIN user_api_keys k ON k.user_id = u.id AND k.revoked_at IS NULL `+where+`
+		ORDER BY u.id DESC LIMIT ?, ?`, args...)
+	if err != nil {
+		return AdminUserPage{}, err
+	}
+	defer rows.Close()
+	items := make([]AdminUserView, 0)
+	for rows.Next() {
+		var item AdminUserView
+		if err := rows.Scan(&item.ID, &item.Email, &item.Role, &item.Status, &item.FailedLoginCount,
+			&item.LockedUntil, &item.LastLoginAt, &item.CreatedAt, &item.APIKeyPrefix); err != nil {
+			return AdminUserPage{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return AdminUserPage{}, err
+	}
+	return AdminUserPage{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+func (s *Store) UpdateStatus(ctx context.Context, userID uint64, status int) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE users SET status = ? WHERE id = ?`, status, userID)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) UpdateRole(ctx context.Context, userID uint64, role string) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, userID)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func normalizePage(page, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
 }
 
 func (s *Store) RecordLoginFailure(ctx context.Context, id uint64, lockedUntil *time.Time) error {

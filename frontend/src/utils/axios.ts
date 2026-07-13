@@ -264,6 +264,10 @@ class Yu {
   put<T = Result>(url: string, data?: object): Promise<T> {
     return this.instance.put(url, data);
   }
+  // Patch请求
+  patch<T = Result>(url: string, data?: object): Promise<T> {
+    return this.instance.patch(url, data);
+  }
   // Delete请求 /yu/role/1
   delete<T = Result>(url: string): Promise<T> {
     return this.instance.delete(url);

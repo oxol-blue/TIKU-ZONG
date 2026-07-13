@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,14 @@ type credentialsRequest struct {
 
 type refreshRequest struct {
 	RefreshToken string `json:"refreshToken" binding:"required"`
+}
+
+type userStatusRequest struct {
+	Status int `json:"status"`
+}
+
+type userRoleRequest struct {
+	Role string `json:"role" binding:"required"`
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -126,6 +135,78 @@ func (h *Handler) CreateAPIKey(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "created", "data": gin.H{"key": plain, "info": view}})
+}
+
+func (h *Handler) AdminUsers(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	status := -1
+	if value := c.Query("status"); value != "" {
+		status, _ = strconv.Atoi(value)
+	}
+	data, err := h.service.ListUsers(c.Request.Context(), c.Query("search"), status, page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load users"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": data})
+}
+
+func (h *Handler) AdminUpdateUserStatus(c *gin.Context) {
+	actor, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		return
+	}
+	var request userStatusRequest
+	if !bindJSON(c, &request) {
+		return
+	}
+	if err := h.service.UpdateUserStatus(c.Request.Context(), actor.ID, userID, request.Status); err != nil {
+		handleAdminUserError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
+}
+
+func (h *Handler) AdminUpdateUserRole(c *gin.Context) {
+	actor, ok := currentUser(c)
+	if !ok {
+		return
+	}
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid user id"})
+		return
+	}
+	var request userRoleRequest
+	if !bindJSON(c, &request) {
+		return
+	}
+	if err := h.service.UpdateUserRole(c.Request.Context(), actor.ID, userID, request.Role); err != nil {
+		handleAdminUserError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
+}
+
+func handleAdminUserError(c *gin.Context, err error) {
+	status := http.StatusBadRequest
+	code := "INVALID_USER_UPDATE"
+	message := "user update failed"
+	switch {
+	case errors.Is(err, ErrNotFound):
+		status, code, message = http.StatusNotFound, "USER_NOT_FOUND", "user not found"
+	case errors.Is(err, ErrSelfModification):
+		status, code, message = http.StatusConflict, "SELF_MODIFICATION_FORBIDDEN", "administrator cannot modify self"
+	case errors.Is(err, ErrInvalidInput):
+		status, code, message = http.StatusBadRequest, "INVALID_INPUT", "invalid user status or role"
+	}
+	c.JSON(status, gin.H{"code": code, "message": message})
 }
 
 func (h *Handler) RequireAuth() gin.HandlerFunc {
