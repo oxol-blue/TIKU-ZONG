@@ -36,6 +36,23 @@
           <el-table :data="models" stripe class="table"><el-table-column prop="id" label="ID" width="80" /><el-table-column prop="providerName" label="服务商" /><el-table-column prop="name" label="模型" /><el-table-column prop="priority" label="优先级" /><el-table-column prop="keyConfigured" label="密钥已配置" /></el-table>
         </el-tab-pane>
 
+        <el-tab-pane label="AI 答案管理" name="aiAnswers">
+          <div class="toolbar question-toolbar">
+            <el-input v-model="aiSearch" clearable placeholder="搜索原始题目" @keyup.enter="refreshAiAnswers" />
+            <el-input v-model="aiProvider" clearable placeholder="服务商" @keyup.enter="refreshAiAnswers" />
+            <el-input v-model="aiModel" clearable placeholder="模型" @keyup.enter="refreshAiAnswers" />
+            <el-select v-model="aiStatus" clearable placeholder="全部状态" @change="refreshAiAnswers"><el-option label="启用" :value="1" /><el-option label="停用" :value="0" /></el-select>
+            <el-button type="primary" @click="refreshAiAnswers">查询</el-button>
+          </div>
+          <el-alert title="AI 答案会直接写入 question_ai；停用仅代表不再命中缓存，不阻止后续重新生成。" type="info" :closable="false" show-icon />
+          <el-table :data="aiAnswers" stripe class="table">
+            <el-table-column prop="id" label="ID" width="75" /><el-table-column prop="question" label="原始题目" min-width="330" show-overflow-tooltip /><el-table-column prop="answer" label="解析答案" min-width="220" show-overflow-tooltip /><el-table-column prop="provider" label="服务商" width="120" /><el-table-column prop="model" label="模型" width="150" /><el-table-column prop="tokenCount" label="Token" width="85" /><el-table-column label="耗时" width="100"><template #default="scope">{{ (scope.row.elapsedMicros / 1000).toFixed(2) }} ms</template></el-table-column>
+            <el-table-column label="状态" width="90"><template #default="scope"><el-tag :type="scope.row.status === 1 ? 'success' : 'info'">{{ scope.row.status === 1 ? '启用' : '停用' }}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="160" fixed="right"><template #default="scope"><el-button link type="primary" @click="showAiAnswer(scope.row.id)">详情</el-button><el-button link :type="scope.row.status === 1 ? 'danger' : 'success'" @click="toggleAiAnswer(scope.row)">{{ scope.row.status === 1 ? '停用' : '启用' }}</el-button></template></el-table-column>
+          </el-table>
+          <div class="pagination"><el-pagination v-model:current-page="aiPage" v-model:page-size="aiPageSize" layout="total, sizes, prev, pager, next" :total="aiTotal" @current-change="refreshAiAnswers" @size-change="refreshAiAnswers" /></div>
+        </el-tab-pane>
+
         <el-tab-pane label="支付网关" name="payment">
           <el-form :model="gatewayForm" label-position="top" class="form-grid">
             <el-form-item label="名称"><el-input v-model="gatewayForm.name" /></el-form-item>
@@ -157,13 +174,18 @@
         <div class="detail-list"><div v-for="answer in questionDetail.answers" :key="answer.position">{{ answer.text }}</div></div>
       </template>
     </el-dialog>
+    <el-dialog v-model="aiDialog" title="AI 答案详情" width="820px">
+      <template v-if="aiDetail">
+        <el-descriptions :column="2" border><el-descriptions-item label="ID">{{ aiDetail.id }}</el-descriptions-item><el-descriptions-item label="题型">{{ aiDetail.type }}</el-descriptions-item><el-descriptions-item label="服务商">{{ aiDetail.provider }}</el-descriptions-item><el-descriptions-item label="模型">{{ aiDetail.model }}</el-descriptions-item><el-descriptions-item label="Token">{{ aiDetail.tokenCount }}</el-descriptions-item><el-descriptions-item label="状态">{{ aiDetail.status === 1 ? '启用' : '停用' }}</el-descriptions-item><el-descriptions-item label="题目" :span="2"><div class="detail-text">{{ aiDetail.question }}</div></el-descriptions-item><el-descriptions-item label="答案" :span="2"><div class="detail-text">{{ aiDetail.answer }}</div></el-descriptions-item><el-descriptions-item label="Prompt" :span="2"><pre class="raw-text">{{ aiDetail.prompt }}</pre></el-descriptions-item><el-descriptions-item label="AI 原始响应" :span="2"><pre class="raw-text">{{ aiDetail.rawResponse }}</pre></el-descriptions-item></el-descriptions>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, getAdminQuestion, listAdminCalls, listAdminOrders, listAdminUsers, listAdminQuestions, listAiModels, listOcsSources, refundOrder, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, type AdminCallLog, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem } from "@/api/tiku";
+import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, getAdminAiAnswer, getAdminQuestion, listAdminAiAnswers, listAdminCalls, listAdminOrders, listAdminUsers, listAdminQuestions, listAiModels, listOcsSources, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, type AdminAiAnswer, type AdminCallLog, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem } from "@/api/tiku";
 
 const activeTab = ref("ocs");
 const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
@@ -200,11 +222,22 @@ const orderPage = ref(1);
 const orderPageSize = ref(20);
 const orderTotal = ref(0);
 const callLogs = ref<AdminCallLog[]>([]);
+const aiAnswers = ref<AdminAiAnswer[]>([]);
+const aiDetail = ref<AdminAiAnswer>();
+const aiDialog = ref(false);
+const aiSearch = ref("");
+const aiProvider = ref("");
+const aiModel = ref("");
+const aiStatus = ref<number | undefined>();
+const aiPage = ref(1);
+const aiPageSize = ref(20);
+const aiTotal = ref(0);
 const refresh = async () => { ocsSources.value = (await listOcsSources()).data ?? []; models.value = (await listAiModels()).data ?? []; };
 const refreshUsers = async () => { const result = await listAdminUsers({ page: userPage.value, pageSize: userPageSize.value, search: userSearch.value || undefined, status: userStatus.value }); users.value = result.data?.items ?? []; userTotal.value = result.data?.total ?? 0; };
 const refreshQuestions = async () => { const result = await listAdminQuestions({ page: questionPage.value, pageSize: questionPageSize.value, search: questionSearch.value || undefined, subject: questionSubject.value || undefined, type: questionType.value || undefined, status: questionStatus.value }); questions.value = result.data?.items ?? []; questionTotal.value = result.data?.total ?? 0; };
 const refreshOrders = async () => { const result = await listAdminOrders({ page: orderPage.value, pageSize: orderPageSize.value, search: orderSearch.value || undefined, status: orderStatus.value || undefined }); orders.value = result.data?.items ?? []; orderTotal.value = result.data?.total ?? 0; };
 const refreshCalls = async () => { callLogs.value = (await listAdminCalls()).data ?? []; };
+const refreshAiAnswers = async () => { const result = await listAdminAiAnswers({ page: aiPage.value, pageSize: aiPageSize.value, search: aiSearch.value || undefined, provider: aiProvider.value || undefined, model: aiModel.value || undefined, status: aiStatus.value }); aiAnswers.value = result.data?.items ?? []; aiTotal.value = result.data?.total ?? 0; };
 const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
@@ -218,9 +251,11 @@ const toggleQuestion = async (question: AdminQuestionItem) => { await updateAdmi
 const showQuestion = async (id: number) => { questionDetail.value = (await getAdminQuestion(id)).data; questionDialog.value = true; };
 const closeOrders = async () => { const result = await closeExpiredOrders(); ElMessage.success(`已关闭 ${result.data?.count ?? 0} 个过期订单`); await refreshOrders(); };
 const refund = async (order: AdminOrderItem) => { const value = window.prompt(`请输入退款金额（分），最多 ${order.payableCents - order.refundedCents}`); const amount = Number(value); if (!Number.isInteger(amount) || amount <= 0) return; await refundOrder(order.orderNo, { amountCents: amount, reason: "管理员后台退款" }); ElMessage.success("退款已记录"); await refreshOrders(); };
-onMounted(async () => { await refresh(); await refreshUsers(); await refreshQuestions(); await refreshOrders(); await refreshCalls(); });
+const toggleAiAnswer = async (answer: AdminAiAnswer) => { await updateAdminAiAnswerStatus(answer.id, answer.status === 1 ? 0 : 1); ElMessage.success("AI 答案状态已更新"); await refreshAiAnswers(); };
+const showAiAnswer = async (id: number) => { aiDetail.value = (await getAdminAiAnswer(id)).data; aiDialog.value = true; };
+onMounted(async () => { await refresh(); await refreshUsers(); await refreshQuestions(); await refreshOrders(); await refreshCalls(); await refreshAiAnswers(); });
 </script>
 
 <style scoped lang="scss">
-.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.toolbar { display: flex; gap: 12px; max-width: 900px; }.toolbar .el-input { width: 240px; }.toolbar .el-select { width: 150px; }.table { margin-top: 18px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }.detail-text { white-space: pre-wrap; line-height: 1.7; }.detail-list { white-space: pre-wrap; line-height: 1.8; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.question-toolbar { flex-wrap: wrap; } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; }.toolbar { flex-wrap: wrap; }.toolbar .el-input { width: 100%; } }
+.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.toolbar { display: flex; gap: 12px; max-width: 900px; }.toolbar .el-input { width: 240px; }.toolbar .el-select { width: 150px; }.table { margin-top: 18px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }.detail-text { white-space: pre-wrap; line-height: 1.7; }.detail-list { white-space: pre-wrap; line-height: 1.8; }.raw-text { max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.question-toolbar { flex-wrap: wrap; } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; }.toolbar { flex-wrap: wrap; }.toolbar .el-input { width: 100%; } }
 </style>

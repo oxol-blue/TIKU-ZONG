@@ -29,6 +29,21 @@ func (s *Service) Cached(ctx context.Context, question string) (Answer, error) {
 	return s.store.GetCached(ctx, questionHash(question))
 }
 
+func (s *Service) ListAnswers(ctx context.Context, search, provider, model string, status, page, pageSize int) (AnswerPage, error) {
+	return s.store.ListAnswers(ctx, search, provider, model, status, page, pageSize)
+}
+
+func (s *Service) GetAnswer(ctx context.Context, id uint64) (AdminAnswer, error) {
+	return s.store.GetAnswer(ctx, id)
+}
+
+func (s *Service) UpdateAnswerStatus(ctx context.Context, id uint64, status int) error {
+	if status != 0 && status != 1 {
+		return errors.New("invalid answer status")
+	}
+	return s.store.UpdateAnswerStatus(ctx, id, status)
+}
+
 func (s *Service) Solve(ctx context.Context, question, questionType string, options []string) (Answer, error) {
 	hash := questionHash(question)
 	if cached, err := s.store.GetCached(ctx, hash); err == nil {

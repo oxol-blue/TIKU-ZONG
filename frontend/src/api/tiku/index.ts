@@ -175,3 +175,27 @@ export const refundOrder = (orderNo: string, data: { amountCents: number; reason
   koi.post<{ code: number; message: string; data: AdminOrderItem }>(`/api/v1/admin/orders/${encodeURIComponent(orderNo)}/refund`, data);
 export const listAdminCalls = (limit = 100) =>
   koi.get<{ code: number; message: string; data: AdminCallLog[] }>("/api/v1/admin/calls", { limit });
+
+export interface AdminAiAnswer {
+  id: number;
+  questionHash: string;
+  question: string;
+  type: string;
+  answer: string;
+  prompt: string;
+  rawResponse: string;
+  provider: string;
+  model: string;
+  tokenCount: number;
+  elapsedMicros: number;
+  status: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const listAdminAiAnswers = (params: { page?: number; pageSize?: number; search?: string; provider?: string; model?: string; status?: number }) =>
+  koi.get<{ code: number; message: string; data: { items: AdminAiAnswer[]; page: number; pageSize: number; total: number } }>("/api/v1/admin/ai/answers", params);
+export const getAdminAiAnswer = (id: number) =>
+  koi.get<{ code: number; message: string; data: AdminAiAnswer }>(`/api/v1/admin/ai/answers/${id}`);
+export const updateAdminAiAnswerStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/ai/answers/${id}/status`, { status });

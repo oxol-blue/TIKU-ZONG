@@ -41,3 +41,27 @@ type Answer struct {
 	ChargeCount  int
 	Elapsed      time.Duration
 }
+
+type AdminAnswer struct {
+	ID           uint64    `json:"id"`
+	QuestionHash string    `json:"questionHash"`
+	Question     string    `json:"question"`
+	Type         string    `json:"type"`
+	Text         string    `json:"answer"`
+	Prompt       string    `json:"prompt"`
+	RawResponse  string    `json:"rawResponse"`
+	Provider     string    `json:"provider"`
+	Model        string    `json:"model"`
+	TokenCount   int       `json:"tokenCount"`
+	Elapsed      int64     `json:"elapsedMicros"`
+	Status       int       `json:"status"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+type AnswerPage struct {
+	Items    []AdminAnswer `json:"items"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"pageSize"`
+	Total    int           `json:"total"`
+}
