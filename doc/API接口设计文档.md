@@ -109,6 +109,13 @@ PATCH /api/v1/admin/ai/models/{id}/status
 
 `POST /api/v1/admin/ocs/sources` 接收名称、主页、URL、GET/POST 方法、请求头、`data`、优先级、启用状态及响应字段路径。`data` 的顶层字段可使用安全 DSL：`value/template`、`replace`、`map`、`split`、`join`；字符串值和 URL 支持 `${title}`、`${question}`、`${type}`、`${options}`。包含 OCS 原生 JavaScript `handler` 的字段会返回参数错误，服务端不执行任意脚本。
 
+```text
+PUT   /api/v1/admin/ocs/sources/{id}
+PATCH /api/v1/admin/ocs/sources/{id}/status  { "status": 0|1 }
+```
+
+编辑请求使用与创建相同的完整题库源载荷。不存在的来源返回 `404 OCS_SOURCE_NOT_FOUND`；状态字段缺失或不是 `0`/`1` 返回 `400`。
+
 ### 管理员操作日志
 
 ```text

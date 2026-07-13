@@ -2,6 +2,16 @@ package ocs
 
 import "testing"
 
+func TestUpdateSourceValidation(t *testing.T) {
+	service := NewService(nil)
+	if err := service.UpdateSourceStatus(nil, 1, 2); err == nil {
+		t.Fatal("expected invalid source status to be rejected")
+	}
+	if err := service.UpdateSource(nil, 1, SourceInput{URL: "https://example.com"}); err == nil {
+		t.Fatal("expected source name to be required")
+	}
+}
+
 func TestLookupAndStringifyAnswer(t *testing.T) {
 	document := map[string]any{
 		"code":   float64(1),

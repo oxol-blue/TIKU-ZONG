@@ -98,8 +98,14 @@
             <el-form-item label="答案字段路径"><el-input v-model="ocsForm.answerPath" placeholder="data" /></el-form-item>
           </el-form>
           <el-alert title="URL、请求头和字符串参数支持 ${title}、${question}、${type}、${options}。参数顶层字段可使用安全 DSL：value/template、replace、map、split、join；不执行 JavaScript handler。" type="info" :closable="false" show-icon />
-          <el-button type="primary" :loading="saving" @click="saveOcs">保存题库源</el-button>
-          <el-table :data="ocsSources" stripe class="table"><el-table-column prop="name" label="名称" /><el-table-column prop="url" label="URL" /><el-table-column prop="priority" label="优先级" /><el-table-column prop="enabled" label="启用" /></el-table>
+          <div class="import-actions"><el-button type="primary" :loading="saving" @click="saveOcs">{{ ocsEditingId ? "保存修改" : "新增题库源" }}</el-button><el-button v-if="ocsEditingId" @click="resetOcsForm">取消编辑</el-button></div>
+          <el-table :data="ocsSources" stripe class="table">
+            <el-table-column prop="name" label="名称" min-width="140" />
+            <el-table-column prop="url" label="URL" min-width="240" show-overflow-tooltip />
+            <el-table-column prop="priority" label="优先级" width="100" />
+            <el-table-column label="状态" width="90"><template #default="scope"><el-tag :type="scope.row.enabled ? 'success' : 'info'">{{ scope.row.enabled ? "启用" : "停用" }}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="160"><template #default="scope"><el-button link type="primary" @click="editOcsSource(scope.row)">编辑</el-button><el-button link :type="scope.row.enabled ? 'danger' : 'success'" @click="toggleOcsSource(scope.row)">{{ scope.row.enabled ? "停用" : "启用" }}</el-button></template></el-table-column>
+          </el-table>
         </el-tab-pane>
 
         <el-tab-pane label="AI 模型" name="ai">
@@ -388,7 +394,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, type UploadFile } from "element-plus";
-import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createInvite, createOcsSource, createAnnouncement, getAdminAiAnswer, getAdminQuestion, getAdminSettings, getDashboardStats, getPaymentGateway, grantAdminPackage, importQuestionFile as uploadQuestionFile, importQuestions, listAdminAiAnswers, listAdminAuditLogs, listAdminCalls, listAdminFeedback, listAdminOrders, listAdminUsers, listAdminQuestions, listAdminPackages, listAdminCoupons, listAdminAnnouncements, listAiModels, listInvites, listOrderRefunds, listOcsSources, reconcileOrders, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, updateAdminPackageStatus, updateAdminPackage, updateAdminCouponStatus, updateAdminSettings, updateAiModel, updateAiModelStatus, updateAnnouncement, updateAnnouncementStatus, type AdminAiAnswer, type AdminAuditLog, type AdminCallLog, type AdminFeedbackItem, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem, type DashboardStats, type InviteItem, type ReconciliationIssue, type RefundItem, type PackageItem, type CouponItem, type AnnouncementItem, type SystemSettings } from "@/api/tiku";
+import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createInvite, createOcsSource, createAnnouncement, getAdminAiAnswer, getAdminQuestion, getAdminSettings, getDashboardStats, getPaymentGateway, grantAdminPackage, importQuestionFile as uploadQuestionFile, importQuestions, listAdminAiAnswers, listAdminAuditLogs, listAdminCalls, listAdminFeedback, listAdminOrders, listAdminUsers, listAdminQuestions, listAdminPackages, listAdminCoupons, listAdminAnnouncements, listAiModels, listInvites, listOrderRefunds, listOcsSources, reconcileOrders, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, updateAdminPackageStatus, updateAdminPackage, updateAdminCouponStatus, updateAdminSettings, updateAiModel, updateAiModelStatus, updateAnnouncement, updateAnnouncementStatus, updateOcsSource, updateOcsSourceStatus, type AdminAiAnswer, type AdminAuditLog, type AdminCallLog, type AdminFeedbackItem, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem, type DashboardStats, type InviteItem, type ReconciliationIssue, type RefundItem, type PackageItem, type CouponItem, type AnnouncementItem, type SystemSettings } from "@/api/tiku";
 import { QUESTION_TYPES } from "@/constants/question";
 
 const activeTab = ref("ocs");
@@ -397,6 +403,7 @@ const successRate = computed(() => dashboard.callCount ? ((dashboard.successfulC
 const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
 const saving = ref(false);
 const ocsSources = ref<any[]>([]);
+const ocsEditingId = ref<number | null>(null);
 const models = ref<any[]>([]);
 const ocsForm = reactive({ name: "", homepage: "", url: "", method: "GET", dataText: '{"q":"${title}"}', headersText: "{}", priority: 100, enabled: true, successPath: "code", successValue: "1", questionPath: "q", answerPath: "data" });
 const providerForm = reactive({ name: "", baseUrl: "", apiKey: "" });
@@ -539,7 +546,10 @@ const refreshAnnouncements = async () => { announcements.value = (await listAdmi
 const loadSettings = async () => { Object.assign(settingsForm, (await getAdminSettings()).data); };
 const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const applyProviderPreset = (value: string) => { const preset = providerPresets[value]; if (preset) Object.assign(providerForm, preset); };
-const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, homepage: ocsForm.homepage, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), headers: JSON.parse(ocsForm.headersText), priority: ocsForm.priority, successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: ocsForm.enabled }); ElMessage.success("OCS 源已保存"); await refresh(); } catch { ElMessage.error("OCS 配置格式不正确，请检查 JSON 和安全字段 DSL"); } finally { saving.value = false; } };
+const resetOcsForm = () => { Object.assign(ocsForm, { name: "", homepage: "", url: "", method: "GET", dataText: '{"q":"${title}"}', headersText: "{}", priority: 100, enabled: true, successPath: "code", successValue: "1", questionPath: "q", answerPath: "data" }); ocsEditingId.value = null; };
+const saveOcs = async () => { saving.value = true; try { const payload = { name: ocsForm.name, homepage: ocsForm.homepage, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), headers: JSON.parse(ocsForm.headersText), priority: ocsForm.priority, successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: ocsForm.enabled }; if (ocsEditingId.value) await updateOcsSource(ocsEditingId.value, payload); else await createOcsSource(payload); ElMessage.success(ocsEditingId.value ? "OCS 源已更新" : "OCS 源已保存"); resetOcsForm(); await refresh(); } catch { ElMessage.error("OCS 配置格式不正确，请检查 JSON 和安全字段 DSL"); } finally { saving.value = false; } };
+const editOcsSource = (source: any) => { Object.assign(ocsForm, { name: source.name, homepage: source.homepage ?? "", url: source.url, method: source.method, dataText: JSON.stringify(source.data ?? {}, null, 2), headersText: JSON.stringify(source.headers ?? {}, null, 2), priority: source.priority, enabled: Boolean(source.enabled), successPath: source.successPath, successValue: source.successValue, questionPath: source.questionPath, answerPath: source.answerPath }); ocsEditingId.value = source.id; };
+const toggleOcsSource = async (source: any) => { await updateOcsSourceStatus(source.id, source.enabled ? 0 : 1); ElMessage.success(source.enabled ? "OCS 源已停用" : "OCS 源已启用"); await refresh(); };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
 const saveModel = async () => { await createAiModel(modelForm); ElMessage.success("AI 模型已创建"); await refresh(); };
 const editModel = (model: typeof models.value[number]) => { Object.assign(modelEditForm, model); modelDialog.value = true; };

@@ -29,3 +29,7 @@
 ```
 
 URL、请求头和字符串参数均支持 `${title}`、`${question}`、`${type}`、`${options}`。POST 会保留 JSON 数字和数组；GET 对非标量参数进行 JSON 编码。为满足系统安全要求，任何包含 OCS 原生 `handler` JavaScript 的字段都会被拒绝，不会执行或保存为可执行逻辑。
+
+## 6. 题库源维护
+
+管理员可创建、查看、编辑和启用/停用第三方 OCS 题库源。编辑接口为 `PUT /api/v1/admin/ocs/sources/{id}`，状态接口为 `PATCH /api/v1/admin/ocs/sources/{id}/status`，状态值只能为 `0`（停用）或 `1`（启用）。停用后该来源不再加入本地题库后的 OCS 故障转移链路；既有配置不会被删除。

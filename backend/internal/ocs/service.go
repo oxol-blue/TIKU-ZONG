@@ -14,7 +14,10 @@ import (
 	"time"
 )
 
-var ErrNoAnswer = errors.New("ocs source returned no answer")
+var (
+	ErrNoAnswer = errors.New("ocs source returned no answer")
+	ErrNotFound = errors.New("OCS source not found")
+)
 
 type Service struct {
 	store     *Store
@@ -31,26 +34,53 @@ func NewService(store *Store, mergeRules ...string) *Service {
 }
 
 func (s *Service) CreateSource(ctx context.Context, input SourceInput) (Source, error) {
-	if err := validateURL(input.URL); err != nil {
-		return Source{}, err
-	}
-	input.Method = strings.ToUpper(strings.TrimSpace(input.Method))
-	if input.Method == "" {
-		input.Method = http.MethodGet
-	}
-	if input.Method != http.MethodGet && input.Method != http.MethodPost {
-		return Source{}, errors.New("OCS method must be GET or POST")
-	}
-	if input.Priority <= 0 {
-		input.Priority = 100
-	}
-	if err := validateFieldDefinitions(input.Data); err != nil {
+	if err := s.validateSourceInput(&input); err != nil {
 		return Source{}, err
 	}
 	return s.store.CreateSource(ctx, input)
 }
 
 func (s *Service) ListSources(ctx context.Context) ([]Source, error) { return s.store.ListSources(ctx) }
+
+func (s *Service) UpdateSource(ctx context.Context, id uint64, input SourceInput) error {
+	if id == 0 {
+		return ErrNotFound
+	}
+	if err := s.validateSourceInput(&input); err != nil {
+		return err
+	}
+	return s.store.UpdateSource(ctx, id, input)
+}
+
+func (s *Service) UpdateSourceStatus(ctx context.Context, id uint64, status int) error {
+	if id == 0 {
+		return ErrNotFound
+	}
+	if status != 0 && status != 1 {
+		return errors.New("invalid OCS source status")
+	}
+	return s.store.UpdateSourceStatus(ctx, id, status)
+}
+
+func (s *Service) validateSourceInput(input *SourceInput) error {
+	if strings.TrimSpace(input.Name) == "" {
+		return errors.New("OCS source name is required")
+	}
+	if err := validateURL(input.URL); err != nil {
+		return err
+	}
+	input.Method = strings.ToUpper(strings.TrimSpace(input.Method))
+	if input.Method == "" {
+		input.Method = http.MethodGet
+	}
+	if input.Method != http.MethodGet && input.Method != http.MethodPost {
+		return errors.New("OCS method must be GET or POST")
+	}
+	if input.Priority <= 0 {
+		input.Priority = 100
+	}
+	return validateFieldDefinitions(input.Data)
+}
 
 func (s *Service) Search(ctx context.Context, question, questionType string, options []string) (Result, error) {
 	sources, err := s.store.ListEnabledSources(ctx)

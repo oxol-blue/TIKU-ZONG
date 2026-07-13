@@ -126,6 +126,10 @@ export const getOcsConfig = () => koi.get<any>("/api/ocs/config", { key: "" });
 export const listOcsSources = () => koi.get<{ code: number; message: string; data: any[] }>("/api/v1/admin/ocs/sources");
 export const createOcsSource = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/ocs/sources", data);
+export const updateOcsSource = (id: number, data: Record<string, unknown>) =>
+  koi.put<{ code: number; message: string }>(`/api/v1/admin/ocs/sources/${id}`, data);
+export const updateOcsSourceStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/ocs/sources/${id}/status`, { status });
 export const createAiProvider = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: { id: number } }>("/api/v1/admin/ai/providers", data);
 export const createAiModel = (data: Record<string, unknown>) =>

@@ -47,6 +47,40 @@ func (s *Store) CreateSource(ctx context.Context, input SourceInput) (Source, er
 	return s.GetSource(ctx, uint64(id))
 }
 
+func (s *Store) UpdateSource(ctx context.Context, id uint64, input SourceInput) error {
+	headers, err := json.Marshal(input.Headers)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(input.Data)
+	if err != nil {
+		return err
+	}
+	enabled := 0
+	if input.Enabled {
+		enabled = 1
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE ocs_sources SET name = ?, homepage = ?, url = ?, method = ?, headers_json = ?, data_json = ?, success_path = ?, success_value = ?, question_path = ?, answer_path = ?, priority = ?, enabled = ? WHERE id = ?`, input.Name, input.Homepage, input.URL, input.Method, headers, data, input.SuccessPath, input.SuccessValue, input.QuestionPath, input.AnswerPath, input.Priority, enabled, id)
+	if err != nil {
+		return fmt.Errorf("update OCS source: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) UpdateSourceStatus(ctx context.Context, id uint64, status int) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE ocs_sources SET enabled = ? WHERE id = ?`, status, id)
+	if err != nil {
+		return fmt.Errorf("update OCS source status: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) GetSource(ctx context.Context, id uint64) (Source, error) {
 	var item Source
 	var headers, data string

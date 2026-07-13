@@ -2,7 +2,9 @@ package ocs
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -48,6 +50,60 @@ func (h *Handler) ListSources(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
+func (h *Handler) UpdateSource(c *gin.Context) {
+	if h.store == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "SERVICE_UNAVAILABLE", "message": "OCS service is unavailable"})
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid OCS source id"})
+		return
+	}
+	var input SourceInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid OCS source payload"})
+		return
+	}
+	if err := NewService(h.store).UpdateSource(c.Request.Context(), id, input); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "OCS_SOURCE_NOT_FOUND", "message": "OCS source not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": "OCS_SOURCE_UPDATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
+}
+
+func (h *Handler) UpdateSourceStatus(c *gin.Context) {
+	if h.store == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "SERVICE_UNAVAILABLE", "message": "OCS service is unavailable"})
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid OCS source id"})
+		return
+	}
+	var request struct {
+		Status *int `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil || request.Status == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "status is required"})
+		return
+	}
+	if err := NewService(h.store).UpdateSourceStatus(c.Request.Context(), id, *request.Status); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "OCS_SOURCE_NOT_FOUND", "message": "OCS source not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "invalid OCS source status"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
 }
 
 func (h *Handler) Config(c *gin.Context) {

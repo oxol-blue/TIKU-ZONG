@@ -175,6 +175,8 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.PATCH("/admin/ai/answers/:id/status", adminOnly, aiHandler.UpdateAnswerStatus)
 	protected.POST("/admin/ocs/sources", adminOnly, ocsHandler.CreateSource)
 	protected.GET("/admin/ocs/sources", adminOnly, ocsHandler.ListSources)
+	protected.PUT("/admin/ocs/sources/:id", adminOnly, ocsHandler.UpdateSource)
+	protected.PATCH("/admin/ocs/sources/:id/status", adminOnly, ocsHandler.UpdateSourceStatus)
 	ocsRoutes := router.Group("/api/ocs")
 	ocsRoutes.Use(authHandler.RequireBearerOrAPIKey())
 	ocsRoutes.GET("/config", ocsHandler.Config)
