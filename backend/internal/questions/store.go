@@ -85,10 +85,70 @@ func (s *Store) Search(ctx context.Context, query string) (Question, error) {
 	return s.GetByID(ctx, id)
 }
 
+func (s *Store) ListAdmin(ctx context.Context, search, questionType, subject string, status, page, pageSize int) (QuestionPage, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	where := "WHERE 1 = 1"
+	args := make([]any, 0, 8)
+	if strings.TrimSpace(search) != "" {
+		where += " AND q.normalized_text LIKE ?"
+		args = append(args, "%"+normalizeText(search)+"%")
+	}
+	if strings.TrimSpace(questionType) != "" {
+		where += " AND q.question_type = ?"
+		args = append(args, strings.TrimSpace(questionType))
+	}
+	if strings.TrimSpace(subject) != "" {
+		where += " AND q.subject = ?"
+		args = append(args, strings.TrimSpace(subject))
+	}
+	if status == 0 || status == 1 {
+		where += " AND q.status = ?"
+		args = append(args, status)
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM questions q "+where, args...).Scan(&total); err != nil {
+		return QuestionPage{}, err
+	}
+	args = append(args, (page-1)*pageSize, pageSize)
+	rows, err := s.db.QueryContext(ctx, `SELECT q.id, q.question_text, q.question_type, q.platform, q.subject,
+		q.source, q.status, q.collected_at, q.created_at,
+		(SELECT COUNT(*) FROM question_options qo WHERE qo.question_id = q.id),
+		(SELECT COUNT(*) FROM question_answers qa WHERE qa.question_id = q.id)
+		FROM questions q `+where+` ORDER BY q.id DESC LIMIT ?, ?`, args...)
+	if err != nil {
+		return QuestionPage{}, err
+	}
+	defer rows.Close()
+	items := make([]QuestionSummary, 0)
+	for rows.Next() {
+		var item QuestionSummary
+		if err := rows.Scan(&item.ID, &item.Question, &item.Type, &item.Platform, &item.Subject,
+			&item.Source, &item.Status, &item.CollectedAt, &item.CreatedAt, &item.OptionCount, &item.AnswerCount); err != nil {
+			return QuestionPage{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return QuestionPage{}, err
+	}
+	return QuestionPage{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+func (s *Store) UpdateStatus(ctx context.Context, id uint64, status int) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE questions SET status = ? WHERE id = ?`, status, id)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) GetByID(ctx context.Context, id uint64) (Question, error) {
 	var question Question
-	err := s.db.QueryRowContext(ctx, `SELECT id, question_text, question_type, platform, subject, source, collected_at FROM questions WHERE id = ?`, id).
-		Scan(&question.ID, &question.Question, &question.Type, &question.Platform, &question.Subject, &question.Source, &question.CollectedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT id, question_text, question_type, platform, subject, source, status, collected_at FROM questions WHERE id = ?`, id).
+		Scan(&question.ID, &question.Question, &question.Type, &question.Platform, &question.Subject, &question.Source, &question.Status, &question.CollectedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Question{}, ErrNotFound
 	}
@@ -120,6 +180,19 @@ func (s *Store) GetByID(ctx context.Context, id uint64) (Question, error) {
 		question.Answers = append(question.Answers, answer)
 	}
 	return question, nil
+}
+
+func normalizePage(page, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
 }
 
 func defaultType(value string) string {

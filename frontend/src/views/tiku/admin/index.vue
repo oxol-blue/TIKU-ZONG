@@ -92,15 +92,47 @@
           </el-table>
           <div class="pagination"><el-pagination v-model:current-page="userPage" v-model:page-size="userPageSize" layout="total, sizes, prev, pager, next" :total="userTotal" @current-change="refreshUsers" @size-change="refreshUsers" /></div>
         </el-tab-pane>
+
+        <el-tab-pane label="题库管理" name="questions">
+          <div class="toolbar question-toolbar">
+            <el-input v-model="questionSearch" clearable placeholder="搜索题目内容" @keyup.enter="refreshQuestions" />
+            <el-input v-model="questionSubject" clearable placeholder="科目" @keyup.enter="refreshQuestions" />
+            <el-select v-model="questionType" clearable placeholder="题型" @change="refreshQuestions">
+              <el-option v-for="item in questionTypes" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+            <el-select v-model="questionStatus" clearable placeholder="全部状态" @change="refreshQuestions"><el-option label="启用" :value="1" /><el-option label="停用" :value="0" /></el-select>
+            <el-button type="primary" @click="refreshQuestions">查询</el-button>
+          </div>
+          <el-table :data="questions" stripe class="table">
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column prop="question" label="题目" min-width="360" show-overflow-tooltip />
+            <el-table-column prop="type" label="题型" width="120" />
+            <el-table-column prop="subject" label="科目" width="130" />
+            <el-table-column prop="platform" label="平台" width="130" />
+            <el-table-column prop="source" label="来源" width="150" show-overflow-tooltip />
+            <el-table-column label="状态" width="90"><template #default="scope"><el-tag :type="scope.row.status === 1 ? 'success' : 'info'">{{ scope.row.status === 1 ? '启用' : '停用' }}</el-tag></template></el-table-column>
+            <el-table-column label="操作" width="160" fixed="right"><template #default="scope"><el-button link type="primary" @click="showQuestion(scope.row.id)">详情</el-button><el-button link :type="scope.row.status === 1 ? 'danger' : 'success'" @click="toggleQuestion(scope.row)">{{ scope.row.status === 1 ? '停用' : '启用' }}</el-button></template></el-table-column>
+          </el-table>
+          <div class="pagination"><el-pagination v-model:current-page="questionPage" v-model:page-size="questionPageSize" layout="total, sizes, prev, pager, next" :total="questionTotal" @current-change="refreshQuestions" @size-change="refreshQuestions" /></div>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
+    <el-dialog v-model="questionDialog" title="题目详情" width="720px">
+      <template v-if="questionDetail">
+        <el-descriptions :column="2" border><el-descriptions-item label="ID">{{ questionDetail.id }}</el-descriptions-item><el-descriptions-item label="题型">{{ questionDetail.type }}</el-descriptions-item><el-descriptions-item label="科目">{{ questionDetail.subject || "-" }}</el-descriptions-item><el-descriptions-item label="平台">{{ questionDetail.platform || "-" }}</el-descriptions-item><el-descriptions-item label="来源" :span="2">{{ questionDetail.source || "-" }}</el-descriptions-item><el-descriptions-item label="题目" :span="2"><div class="detail-text">{{ questionDetail.question }}</div></el-descriptions-item></el-descriptions>
+        <el-divider content-position="left">选项</el-divider>
+        <div v-if="questionDetail.options.length" class="detail-list"><div v-for="option in questionDetail.options" :key="option.position">{{ option.key }}. {{ option.text }}</div></div><el-empty v-else description="无选项" />
+        <el-divider content-position="left">答案（保存为文字）</el-divider>
+        <div class="detail-list"><div v-for="answer in questionDetail.answers" :key="answer.position">{{ answer.text }}</div></div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, listAdminUsers, listAiModels, listOcsSources, updateAdminUserRole, updateAdminUserStatus, type AdminUserItem } from "@/api/tiku";
+import { configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, getAdminQuestion, listAdminUsers, listAdminQuestions, listAiModels, listOcsSources, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem } from "@/api/tiku";
 
 const activeTab = ref("ocs");
 const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
@@ -119,8 +151,20 @@ const userStatus = ref<number | undefined>();
 const userPage = ref(1);
 const userPageSize = ref(20);
 const userTotal = ref(0);
+const questions = ref<AdminQuestionItem[]>([]);
+const questionDetail = ref<AdminQuestionDetail>();
+const questionDialog = ref(false);
+const questionSearch = ref("");
+const questionSubject = ref("");
+const questionType = ref("");
+const questionStatus = ref<number | undefined>();
+const questionPage = ref(1);
+const questionPageSize = ref(20);
+const questionTotal = ref(0);
+const questionTypes = [{ label: "选择题", value: "single" }, { label: "多选题", value: "multiple" }, { label: "判断题", value: "judge" }, { label: "简答题", value: "short_answer" }, { label: "填空题", value: "fill" }, { label: "其它", value: "other" }];
 const refresh = async () => { ocsSources.value = (await listOcsSources()).data ?? []; models.value = (await listAiModels()).data ?? []; };
 const refreshUsers = async () => { const result = await listAdminUsers({ page: userPage.value, pageSize: userPageSize.value, search: userSearch.value || undefined, status: userStatus.value }); users.value = result.data?.items ?? []; userTotal.value = result.data?.total ?? 0; };
+const refreshQuestions = async () => { const result = await listAdminQuestions({ page: questionPage.value, pageSize: questionPageSize.value, search: questionSearch.value || undefined, subject: questionSubject.value || undefined, type: questionType.value || undefined, status: questionStatus.value }); questions.value = result.data?.items ?? []; questionTotal.value = result.data?.total ?? 0; };
 const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
@@ -130,9 +174,11 @@ const savePackage = async () => { await createAdminPackage(packageForm); ElMessa
 const saveCoupon = async () => { await createCoupon(couponForm); ElMessage.success("优惠券已创建"); };
 const toggleStatus = async (user: AdminUserItem) => { await updateAdminUserStatus(user.id, user.status === 1 ? 0 : 1); ElMessage.success("用户状态已更新"); await refreshUsers(); };
 const changeRole = async (user: AdminUserItem, role: "admin" | "user") => { try { await updateAdminUserRole(user.id, role); ElMessage.success("用户角色已更新"); } catch { await refreshUsers(); } };
-onMounted(async () => { await refresh(); await refreshUsers(); });
+const toggleQuestion = async (question: AdminQuestionItem) => { await updateAdminQuestionStatus(question.id, question.status === 1 ? 0 : 1); ElMessage.success("题目状态已更新"); await refreshQuestions(); };
+const showQuestion = async (id: number) => { questionDetail.value = (await getAdminQuestion(id)).data; questionDialog.value = true; };
+onMounted(async () => { await refresh(); await refreshUsers(); await refreshQuestions(); });
 </script>
 
 <style scoped lang="scss">
-.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.toolbar { display: flex; gap: 12px; max-width: 620px; }.toolbar .el-select { width: 150px; }.table { margin-top: 18px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; }.toolbar { flex-wrap: wrap; } }
+.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.toolbar { display: flex; gap: 12px; max-width: 900px; }.toolbar .el-input { width: 240px; }.toolbar .el-select { width: 150px; }.table { margin-top: 18px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }.detail-text { white-space: pre-wrap; line-height: 1.7; }.detail-list { white-space: pre-wrap; line-height: 1.8; } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.question-toolbar { flex-wrap: wrap; } } @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; }.toolbar { flex-wrap: wrap; }.toolbar .el-input { width: 100%; } }
 </style>

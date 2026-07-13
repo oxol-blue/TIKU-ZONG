@@ -175,3 +175,60 @@ func (h *Handler) Import(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "imported", "data": gin.H{"created": created, "duplicates": duplicates}})
 }
+
+func (h *Handler) AdminList(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	status := -1
+	if value := c.Query("status"); value != "" {
+		status, _ = strconv.Atoi(value)
+	}
+	data, err := h.service.ListAdmin(c.Request.Context(), c.Query("search"), c.Query("type"), c.Query("subject"), status, page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load questions"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": data})
+}
+
+func (h *Handler) AdminDetail(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid question id"})
+		return
+	}
+	item, err := h.service.GetByID(c.Request.Context(), id)
+	if errors.Is(err, ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"code": "QUESTION_NOT_FOUND", "message": "question not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load question"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": item})
+}
+
+func (h *Handler) AdminUpdateStatus(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid question id"})
+		return
+	}
+	var request struct {
+		Status int `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "status is required"})
+		return
+	}
+	if err := h.service.UpdateStatus(c.Request.Context(), id, request.Status); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "QUESTION_NOT_FOUND", "message": "question not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "invalid question status"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
+}

@@ -115,3 +115,29 @@ export const updateAdminUserStatus = (id: number, status: number) =>
   koi.patch<{ code: number; message: string }>(`/api/v1/admin/users/${id}/status`, { status });
 export const updateAdminUserRole = (id: number, role: "admin" | "user") =>
   koi.patch<{ code: number; message: string }>(`/api/v1/admin/users/${id}/role`, { role });
+
+export interface AdminQuestionItem {
+  id: number;
+  question: string;
+  type: string;
+  platform: string;
+  subject: string;
+  source: string;
+  status: number;
+  collectedAt?: string;
+  createdAt: string;
+  optionCount: number;
+  answerCount: number;
+}
+
+export interface AdminQuestionDetail extends AdminQuestionItem {
+  options: { key: string; text: string; position: number }[];
+  answers: { text: string; raw: string; position: number }[];
+}
+
+export const listAdminQuestions = (params: { page?: number; pageSize?: number; search?: string; type?: string; subject?: string; status?: number }) =>
+  koi.get<{ code: number; message: string; data: { items: AdminQuestionItem[]; page: number; pageSize: number; total: number } }>("/api/v1/admin/questions", params);
+export const getAdminQuestion = (id: number) =>
+  koi.get<{ code: number; message: string; data: AdminQuestionDetail }>(`/api/v1/admin/questions/${id}`);
+export const updateAdminQuestionStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/questions/${id}/status`, { status });

@@ -42,7 +42,29 @@ type Question struct {
 	Platform    string     `json:"platform"`
 	Subject     string     `json:"subject"`
 	Source      string     `json:"source"`
+	Status      int        `json:"status"`
 	CollectedAt *time.Time `json:"collectedAt,omitempty"`
 	Options     []Option   `json:"options"`
 	Answers     []Answer   `json:"answers"`
+}
+
+type QuestionSummary struct {
+	ID          uint64     `json:"id"`
+	Question    string     `json:"question"`
+	Type        string     `json:"type"`
+	Platform    string     `json:"platform"`
+	Subject     string     `json:"subject"`
+	Source      string     `json:"source"`
+	Status      int        `json:"status"`
+	CollectedAt *time.Time `json:"collectedAt,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	OptionCount int        `json:"optionCount"`
+	AnswerCount int        `json:"answerCount"`
+}
+
+type QuestionPage struct {
+	Items    []QuestionSummary `json:"items"`
+	Page     int               `json:"page"`
+	PageSize int               `json:"pageSize"`
+	Total    int               `json:"total"`
 }

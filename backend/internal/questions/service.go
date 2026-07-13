@@ -33,3 +33,18 @@ func (s *Service) Search(ctx context.Context, query string) (Question, time.Dura
 	question, err := s.store.Search(ctx, query)
 	return question, time.Since(started), err
 }
+
+func (s *Service) ListAdmin(ctx context.Context, search, questionType, subject string, status, page, pageSize int) (QuestionPage, error) {
+	return s.store.ListAdmin(ctx, search, questionType, subject, status, page, pageSize)
+}
+
+func (s *Service) GetByID(ctx context.Context, id uint64) (Question, error) {
+	return s.store.GetByID(ctx, id)
+}
+
+func (s *Service) UpdateStatus(ctx context.Context, id uint64, status int) error {
+	if status != 0 && status != 1 {
+		return errors.New("invalid question status")
+	}
+	return s.store.UpdateStatus(ctx, id, status)
+}
