@@ -1,5 +1,17 @@
 <template>
   <div class="admin-page">
+    <el-dialog v-model="grantDialog" title="发放套餐" width="460px" destroy-on-close>
+      <el-alert title="发放后立即生效，不生成支付订单；请确认用户与套餐。" type="warning" :closable="false" show-icon />
+      <el-form label-position="top" class="grant-form">
+        <el-form-item label="用户"><el-input :model-value="grantUser?.email ?? ''" disabled /></el-form-item>
+        <el-form-item label="套餐">
+          <el-select v-model="grantPackageId" placeholder="请选择已上架套餐" class="full-width">
+            <el-option v-for="item in availableGrantPackages" :key="item.id" :label="`${item.name}（${packageTypeLabel(item.type)}）`" :value="item.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer><el-button @click="grantDialog = false">取消</el-button><el-button type="primary" :loading="granting" :disabled="!grantPackageId" @click="grantPackage">确认发放</el-button></template>
+    </el-dialog>
     <el-dialog v-model="packageDialog" title="编辑套餐" width="680px">
       <el-form :model="packageEditForm" label-position="top" class="form-grid">
         <el-form-item label="套餐名称"><el-input v-model="packageEditForm.name" /></el-form-item>
@@ -13,6 +25,21 @@
         <el-form-item label="免费"><el-switch v-model="packageEditForm.isFree" :active-value="1" :inactive-value="0" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="packageDialog = false">取消</el-button><el-button type="primary" :loading="savingPackage" @click="savePackageEdit">保存</el-button></template>
+    </el-dialog>
+    <el-dialog v-model="modelDialog" title="编辑 AI 模型" width="680px">
+      <el-form :model="modelEditForm" label-position="top" class="form-grid">
+        <el-form-item label="Provider ID"><el-input-number v-model="modelEditForm.providerId" :min="1" /></el-form-item>
+        <el-form-item label="模型名称"><el-input v-model="modelEditForm.name" /></el-form-item>
+        <el-form-item label="优先级（数值越小越优先）"><el-input-number v-model="modelEditForm.priority" :min="1" /></el-form-item>
+        <el-form-item label="超时（秒）"><el-input-number v-model="modelEditForm.timeoutSeconds" :min="1" /></el-form-item>
+        <el-form-item label="计费方式"><el-select v-model="modelEditForm.billingMode"><el-option label="固定次数" value="fixed" /><el-option label="按 Token" value="token" /><el-option label="按成本" value="cost" /></el-select></el-form-item>
+        <el-form-item label="固定次数 / 倍数"><el-input-number v-model="modelEditForm.aiChargeCount" :min="1" /></el-form-item>
+        <el-form-item v-if="modelEditForm.billingMode === 'token'" label="每单位 Token"><el-input-number v-model="modelEditForm.tokenUnit" :min="1" /></el-form-item>
+        <el-form-item v-if="modelEditForm.billingMode === 'cost'" label="每百万 Token 成本（分）"><el-input-number v-model="modelEditForm.costPerMillionTokensCents" :min="1" /></el-form-item>
+        <el-form-item v-if="modelEditForm.billingMode === 'cost'" label="成本加价（%）"><el-input-number v-model="modelEditForm.costMarkupPercent" :min="0" /></el-form-item>
+        <el-form-item v-if="modelEditForm.billingMode === 'cost'" label="每 AI 配额单位（分）"><el-input-number v-model="modelEditForm.costUnitCents" :min="1" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="modelDialog = false">取消</el-button><el-button type="primary" :loading="savingModel" @click="saveModelEdit">保存</el-button></template>
     </el-dialog>
     <el-card shadow="never" class="admin-card">
       <template #header><div class="card-title"><span>题库系统管理</span><div class="header-actions"><el-input v-model="adminTotp" type="password" maxlength="6" placeholder="TOTP（启用时填写）" @change="saveTotp" /><el-tag type="warning">管理员接口</el-tag></div></div></template>
@@ -88,7 +115,7 @@
           </el-form>
           <el-button type="primary" @click="saveModel">创建模型</el-button>
           <el-alert title="按 Token：向上取整(总 Token ÷ 每单位 Token) × 倍数；按成本：成本加价后按“每 AI 配额单位”向上取整。服务商未返回 Token 时，回退扣除固定次数。" type="info" :closable="false" show-icon />
-          <el-table :data="models" stripe class="table"><el-table-column prop="id" label="ID" width="80" /><el-table-column prop="providerName" label="服务商" /><el-table-column prop="name" label="模型" /><el-table-column prop="priority" label="优先级" /><el-table-column prop="billingMode" label="计费方式" width="110" /><el-table-column prop="aiChargeCount" label="固定/倍数" width="105" /><el-table-column prop="keyConfigured" label="密钥已配置" /></el-table>
+          <el-table :data="models" stripe class="table"><el-table-column prop="id" label="ID" width="80" /><el-table-column prop="providerName" label="服务商" /><el-table-column prop="name" label="模型" /><el-table-column prop="priority" label="优先级" /><el-table-column prop="billingMode" label="计费方式" width="110" /><el-table-column prop="aiChargeCount" label="固定/倍数" width="105" /><el-table-column label="状态" width="90"><template #default="scope"><el-tag :type="scope.row.enabled === 1 ? 'success' : 'info'">{{ scope.row.enabled === 1 ? '启用' : '停用' }}</el-tag></template></el-table-column><el-table-column prop="keyConfigured" label="密钥已配置" /><el-table-column label="操作" width="150" fixed="right"><template #default="scope"><el-button link type="primary" @click="editModel(scope.row)">编辑</el-button><el-button link :type="scope.row.enabled === 1 ? 'danger' : 'success'" @click="toggleModel(scope.row)">{{ scope.row.enabled === 1 ? '停用' : '启用' }}</el-button></template></el-table-column></el-table>
         </el-tab-pane>
 
         <el-tab-pane label="AI 答案管理" name="aiAnswers">
@@ -188,8 +215,8 @@
             <el-table-column prop="apiKeyPrefix" label="API Key" width="150" />
             <el-table-column prop="lastLoginAt" label="最近登录" min-width="180" />
             <el-table-column prop="createdAt" label="注册时间" min-width="180" />
-            <el-table-column label="操作" width="110" fixed="right">
-              <template #default="scope"><el-button link :type="scope.row.status === 1 ? 'danger' : 'success'" @click="toggleStatus(scope.row)">{{ scope.row.status === 1 ? '禁用' : '启用' }}</el-button></template>
+            <el-table-column label="操作" width="170" fixed="right">
+              <template #default="scope"><el-button link type="primary" @click="openGrantDialog(scope.row)">发放套餐</el-button><el-button link :type="scope.row.status === 1 ? 'danger' : 'success'" @click="toggleStatus(scope.row)">{{ scope.row.status === 1 ? '禁用' : '启用' }}</el-button></template>
             </el-table-column>
           </el-table>
           <div class="pagination"><el-pagination v-model:current-page="userPage" v-model:page-size="userPageSize" layout="total, sizes, prev, pager, next" :total="userTotal" @current-change="refreshUsers" @size-change="refreshUsers" /></div>
@@ -352,7 +379,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, type UploadFile } from "element-plus";
-import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createInvite, createOcsSource, createAnnouncement, getAdminAiAnswer, getAdminQuestion, getAdminSettings, getDashboardStats, getPaymentGateway, importQuestionFile as uploadQuestionFile, importQuestions, listAdminAiAnswers, listAdminAuditLogs, listAdminCalls, listAdminFeedback, listAdminOrders, listAdminUsers, listAdminQuestions, listAdminPackages, listAdminCoupons, listAdminAnnouncements, listAiModels, listInvites, listOrderRefunds, listOcsSources, reconcileOrders, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, updateAdminPackageStatus, updateAdminPackage, updateAdminCouponStatus, updateAdminSettings, updateAnnouncement, updateAnnouncementStatus, type AdminAiAnswer, type AdminAuditLog, type AdminCallLog, type AdminFeedbackItem, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem, type DashboardStats, type InviteItem, type ReconciliationIssue, type RefundItem, type PackageItem, type CouponItem, type AnnouncementItem, type SystemSettings } from "@/api/tiku";
+import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createInvite, createOcsSource, createAnnouncement, getAdminAiAnswer, getAdminQuestion, getAdminSettings, getDashboardStats, getPaymentGateway, grantAdminPackage, importQuestionFile as uploadQuestionFile, importQuestions, listAdminAiAnswers, listAdminAuditLogs, listAdminCalls, listAdminFeedback, listAdminOrders, listAdminUsers, listAdminQuestions, listAdminPackages, listAdminCoupons, listAdminAnnouncements, listAiModels, listInvites, listOrderRefunds, listOcsSources, reconcileOrders, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, updateAdminPackageStatus, updateAdminPackage, updateAdminCouponStatus, updateAdminSettings, updateAiModel, updateAiModelStatus, updateAnnouncement, updateAnnouncementStatus, type AdminAiAnswer, type AdminAuditLog, type AdminCallLog, type AdminFeedbackItem, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem, type DashboardStats, type InviteItem, type ReconciliationIssue, type RefundItem, type PackageItem, type CouponItem, type AnnouncementItem, type SystemSettings } from "@/api/tiku";
 import { QUESTION_TYPES } from "@/constants/question";
 
 const activeTab = ref("ocs");
@@ -371,6 +398,9 @@ const providerPresets: Record<string, { name: string; baseUrl: string }> = {
   qwen: { name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" }
 };
 const modelForm = reactive({ providerId: 1, name: "", priority: 100, aiChargeCount: 1, billingMode: "fixed", tokenUnit: 1000, costPerMillionTokensCents: 0, costMarkupPercent: 0, costUnitCents: 1 });
+const modelDialog = ref(false);
+const savingModel = ref(false);
+const modelEditForm = reactive({ id: 0, providerId: 1, name: "", priority: 100, timeoutSeconds: 30, aiChargeCount: 1, billingMode: "fixed", tokenUnit: 1000, costPerMillionTokensCents: 0, costMarkupPercent: 0, costUnitCents: 1 });
 const gatewayForm = reactive({ name: "易支付", baseUrl: "", merchantId: "", secretKey: "" });
 const packageForm = reactive({ name: "", type: "count", totalCount: 100, aiCount: 0, priceCents: 0, limitCount: 0 });
 const couponForm = reactive({ code: "", discountType: "percent", discountValue: 10, totalLimit: 0 });
@@ -385,6 +415,11 @@ const savingAnnouncement = ref(false);
 const settingsForm = reactive<SystemSettings>({ siteName: "题库调用系统", supportUrl: "", maintenanceNotice: "", registrationEnabled: true });
 const savingSettings = ref(false);
 const users = ref<AdminUserItem[]>([]);
+const grantDialog = ref(false);
+const granting = ref(false);
+const grantUser = ref<AdminUserItem>();
+const grantPackageId = ref<number>();
+const availableGrantPackages = computed(() => adminPackages.value.filter((item) => item.status === 1));
 const userSearch = ref("");
 const userStatus = ref<number | undefined>();
 const userPage = ref(1);
@@ -498,6 +533,9 @@ const applyProviderPreset = (value: string) => { const preset = providerPresets[
 const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
 const saveModel = async () => { await createAiModel(modelForm); ElMessage.success("AI 模型已创建"); await refresh(); };
+const editModel = (model: typeof models.value[number]) => { Object.assign(modelEditForm, model); modelDialog.value = true; };
+const saveModelEdit = async () => { savingModel.value = true; try { await updateAiModel(modelEditForm.id, modelEditForm); ElMessage.success("AI 模型已更新"); modelDialog.value = false; await refresh(); } finally { savingModel.value = false; } };
+const toggleModel = async (model: typeof models.value[number]) => { await updateAiModelStatus(model.id, model.enabled === 1 ? 0 : 1); ElMessage.success("AI 模型状态已更新"); await refresh(); };
 const saveGateway = async () => { await configurePaymentGateway({ provider: "epay", enabled: true, ...gatewayForm }); ElMessage.success("支付网关已保存"); await loadGateway(); };
 const loadGateway = async () => { try { const response = await getPaymentGateway(); gatewayForm.name = response.data.name; gatewayForm.baseUrl = response.data.baseUrl; gatewayForm.merchantId = response.data.merchantId; gatewayForm.secretKey = ""; } catch { gatewayForm.secretKey = ""; } };
 const savePackage = async () => { await createAdminPackage(packageForm); ElMessage.success("套餐已创建"); await refresh(); };
@@ -513,6 +551,24 @@ const toggleAnnouncement = async (item: AnnouncementItem) => { await updateAnnou
 const saveSettings = async () => { savingSettings.value = true; try { Object.assign(settingsForm, (await updateAdminSettings(settingsForm)).data); ElMessage.success("系统配置已保存"); } finally { savingSettings.value = false; } };
 const toggleStatus = async (user: AdminUserItem) => { await updateAdminUserStatus(user.id, user.status === 1 ? 0 : 1); ElMessage.success("用户状态已更新"); await refreshUsers(); };
 const changeRole = async (user: AdminUserItem, role: "admin" | "user") => { try { await updateAdminUserRole(user.id, role); ElMessage.success("用户角色已更新"); } catch { await refreshUsers(); } };
+const packageTypeLabel = (type: PackageItem["type"]) => ({ time: "时间套餐", count: "次数套餐", time_count: "时间次数套餐" }[type]);
+const openGrantDialog = (user: AdminUserItem) => {
+  grantUser.value = user;
+  grantPackageId.value = availableGrantPackages.value[0]?.id;
+  grantDialog.value = true;
+};
+const grantPackage = async () => {
+  if (!grantUser.value || !grantPackageId.value) return;
+  granting.value = true;
+  try {
+    await grantAdminPackage(grantPackageId.value, grantUser.value.id);
+    ElMessage.success(`已向 ${grantUser.value.email} 发放套餐`);
+    grantDialog.value = false;
+    await refresh();
+  } finally {
+    granting.value = false;
+  }
+};
 const toggleQuestion = async (question: AdminQuestionItem) => { await updateAdminQuestionStatus(question.id, question.status === 1 ? 0 : 1); ElMessage.success("题目状态已更新"); await refreshQuestions(); };
 const showQuestion = async (id: number) => { questionDetail.value = (await getAdminQuestion(id)).data; questionDialog.value = true; };
 const showRefunds = async (order: AdminOrderItem) => { refunds.value = (await listOrderRefunds(order.orderNo)).data ?? []; refundDialog.value = true; };
@@ -526,5 +582,5 @@ onMounted(async () => { await refresh(); await loadGateway(); await loadSettings
 </script>
 
 <style scoped lang="scss">
-.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.dashboard-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }.dashboard-grid :deep(.el-card__body) { padding: 14px; }.metric-value { font-size: 22px; font-weight: 700; color: var(--el-color-primary); white-space: nowrap; }.metric-label { color: var(--el-text-color-secondary); margin-top: 6px; font-size: 13px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.import-tip { margin-bottom: 12px; }.import-panel { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }.import-actions { display: flex; gap: 10px; }.toolbar { display: flex; gap: 12px; max-width: 900px; }.toolbar .el-input { width: 240px; }.toolbar .el-select { width: 150px; }.table { margin-top: 18px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }.detail-text { white-space: pre-wrap; line-height: 1.7; }.detail-list { white-space: pre-wrap; line-height: 1.8; }.raw-text { max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; } @media (max-width: 1200px) { .dashboard-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.question-toolbar { flex-wrap: wrap; } } @media (max-width: 600px) { .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.form-grid { grid-template-columns: 1fr; }.toolbar { flex-wrap: wrap; }.toolbar .el-input { width: 100%; } }
+.admin-page { padding: 16px; }.admin-card { border-radius: 10px; }.dashboard-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }.dashboard-grid :deep(.el-card__body) { padding: 14px; }.metric-value { font-size: 22px; font-weight: 700; color: var(--el-color-primary); white-space: nowrap; }.metric-label { color: var(--el-text-color-secondary); margin-top: 6px; font-size: 13px; }.card-title, .header-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }.header-actions :deep(.el-input) { width: 190px; }.form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 16px; }.grant-form { margin-top: 16px; }.full-width { width: 100%; }.import-tip { margin-bottom: 12px; }.import-panel { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }.import-actions { display: flex; gap: 10px; }.toolbar { display: flex; gap: 12px; max-width: 900px; }.toolbar .el-input { width: 240px; }.toolbar .el-select { width: 150px; }.table { margin-top: 18px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }.detail-text { white-space: pre-wrap; line-height: 1.7; }.detail-list { white-space: pre-wrap; line-height: 1.8; }.raw-text { max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word; } @media (max-width: 1200px) { .dashboard-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } } @media (max-width: 900px) { .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.question-toolbar { flex-wrap: wrap; } } @media (max-width: 600px) { .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.form-grid { grid-template-columns: 1fr; }.toolbar { flex-wrap: wrap; }.toolbar .el-input { width: 100%; } }
 </style>

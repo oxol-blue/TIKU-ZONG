@@ -60,8 +60,21 @@ func (s *Store) CreateModel(ctx context.Context, input CreateModelInput) (uint64
 	return uint64(id), err
 }
 
-func (s *Store) ListModels(ctx context.Context) ([]Model, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT m.id, m.provider_id, p.name, p.base_url, p.api_key_ciphertext, m.name, m.priority, m.timeout_seconds, m.ai_charge_count, m.billing_mode, m.token_unit, m.cost_per_million_tokens_cents, m.cost_markup_percent, m.cost_unit_cents FROM ai_models m JOIN ai_providers p ON p.id = m.provider_id WHERE m.enabled = 1 AND p.enabled = 1 ORDER BY m.priority ASC, m.id ASC`)
+func (s *Store) ListActiveModels(ctx context.Context) ([]Model, error) {
+	return s.listModels(ctx, true)
+}
+
+func (s *Store) ListAdminModels(ctx context.Context) ([]Model, error) {
+	return s.listModels(ctx, false)
+}
+
+func (s *Store) listModels(ctx context.Context, activeOnly bool) ([]Model, error) {
+	query := `SELECT m.id, m.provider_id, p.name, p.base_url, p.api_key_ciphertext, m.name, m.priority, m.timeout_seconds, m.ai_charge_count, m.billing_mode, m.token_unit, m.cost_per_million_tokens_cents, m.cost_markup_percent, m.cost_unit_cents, m.enabled FROM ai_models m JOIN ai_providers p ON p.id = m.provider_id WHERE p.enabled = 1`
+	if activeOnly {
+		query += " AND m.enabled = 1"
+	}
+	query += " ORDER BY m.priority ASC, m.id ASC"
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +82,34 @@ func (s *Store) ListModels(ctx context.Context) ([]Model, error) {
 	items := make([]Model, 0)
 	for rows.Next() {
 		var item Model
-		if err := rows.Scan(&item.ID, &item.ProviderID, &item.ProviderName, &item.BaseURL, &item.EncryptedKey, &item.Name, &item.Priority, &item.TimeoutSeconds, &item.AIChargeCount, &item.BillingMode, &item.TokenUnit, &item.CostPerMillionTokensCents, &item.CostMarkupPercent, &item.CostUnitCents); err != nil {
+		if err := rows.Scan(&item.ID, &item.ProviderID, &item.ProviderName, &item.BaseURL, &item.EncryptedKey, &item.Name, &item.Priority, &item.TimeoutSeconds, &item.AIChargeCount, &item.BillingMode, &item.TokenUnit, &item.CostPerMillionTokensCents, &item.CostMarkupPercent, &item.CostUnitCents, &item.Enabled); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (s *Store) UpdateModel(ctx context.Context, id uint64, input UpdateModelInput) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE ai_models SET provider_id = ?, name = ?, priority = ?, timeout_seconds = ?, ai_charge_count = ?, billing_mode = ?, token_unit = ?, cost_per_million_tokens_cents = ?, cost_markup_percent = ?, cost_unit_cents = ? WHERE id = ?`, input.ProviderID, strings.TrimSpace(input.Name), input.Priority, input.TimeoutSeconds, input.AIChargeCount, input.BillingMode, input.TokenUnit, input.CostPerMillionTokensCents, input.CostMarkupPercent, input.CostUnitCents, id)
+	if err != nil {
+		return fmt.Errorf("update ai model: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) UpdateModelStatus(ctx context.Context, id uint64, status int) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE ai_models SET enabled = ? WHERE id = ?`, status, id)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) GetCached(ctx context.Context, hash string) (Answer, error) {

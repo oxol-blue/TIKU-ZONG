@@ -111,6 +111,10 @@ export const createAiProvider = (data: Record<string, unknown>) =>
 export const createAiModel = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: { id: number } }>("/api/v1/admin/ai/models", data);
 export const listAiModels = () => koi.get<{ code: number; message: string; data: any[] }>("/api/v1/admin/ai/models");
+export const updateAiModel = (id: number, data: Record<string, unknown>) =>
+  koi.put<{ code: number; message: string }>(`/api/v1/admin/ai/models/${id}`, data);
+export const updateAiModelStatus = (id: number, status: number) =>
+  koi.patch<{ code: number; message: string }>(`/api/v1/admin/ai/models/${id}/status`, { status });
 export const configurePaymentGateway = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/payment/gateways", data);
 export const createAdminPackage = (data: Record<string, unknown>) =>
@@ -121,6 +125,8 @@ export const updateAdminPackageStatus = (id: number, status: number) =>
   koi.patch<{ code: number; message: string }>(`/api/v1/admin/packages/${id}/status`, { status });
 export const updateAdminPackage = (id: number, data: Record<string, unknown>) =>
   koi.put<{ code: number; message: string; data: PackageItem }>(`/api/v1/admin/packages/${id}`, data);
+export const grantAdminPackage = (packageId: number, userId: number) =>
+  koi.post<{ code: number; message: string; data: PackageInstance }>(`/api/v1/admin/packages/${packageId}/grant/${userId}`, {});
 export const createCoupon = (data: Record<string, unknown>) =>
   koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/coupons", data);
 export interface CouponItem {

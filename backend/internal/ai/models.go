@@ -27,6 +27,20 @@ type CreateModelInput struct {
 	CostUnitCents             int    `json:"costUnitCents"`
 }
 
+// UpdateModelInput contains the editable runtime and billing configuration of an AI model.
+type UpdateModelInput struct {
+	ProviderID                uint64 `json:"providerId" binding:"required"`
+	Name                      string `json:"name" binding:"required"`
+	Priority                  int    `json:"priority"`
+	TimeoutSeconds            int    `json:"timeoutSeconds"`
+	AIChargeCount             int    `json:"aiChargeCount"`
+	BillingMode               string `json:"billingMode"`
+	TokenUnit                 int    `json:"tokenUnit"`
+	CostPerMillionTokensCents int    `json:"costPerMillionTokensCents"`
+	CostMarkupPercent         int    `json:"costMarkupPercent"`
+	CostUnitCents             int    `json:"costUnitCents"`
+}
+
 type Model struct {
 	ID                        uint64 `json:"id"`
 	ProviderID                uint64 `json:"providerId"`
@@ -43,6 +57,7 @@ type Model struct {
 	CostPerMillionTokensCents int    `json:"costPerMillionTokensCents"`
 	CostMarkupPercent         int    `json:"costMarkupPercent"`
 	CostUnitCents             int    `json:"costUnitCents"`
+	Enabled                   int    `json:"enabled"`
 }
 
 type Answer struct {

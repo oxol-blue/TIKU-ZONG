@@ -41,7 +41,7 @@ func (h *Handler) CreateModel(c *gin.Context) {
 }
 
 func (h *Handler) ListModels(c *gin.Context) {
-	items, err := h.service.store.ListModels(c.Request.Context())
+	items, err := h.service.store.ListAdminModels(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load AI models"})
 		return
@@ -51,6 +51,52 @@ func (h *Handler) ListModels(c *gin.Context) {
 		items[index].EncryptedKey = ""
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
+func (h *Handler) UpdateModel(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid AI model id"})
+		return
+	}
+	var request UpdateModelInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid AI model payload"})
+		return
+	}
+	if err := h.service.UpdateModel(c.Request.Context(), id, request); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "AI_MODEL_NOT_FOUND", "message": "AI model not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": "AI_MODEL_UPDATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
+}
+
+func (h *Handler) UpdateModelStatus(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_ID", "message": "invalid AI model id"})
+		return
+	}
+	var request struct {
+		Status int `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "status is required"})
+		return
+	}
+	if err := h.service.UpdateModelStatus(c.Request.Context(), id, request.Status); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": "AI_MODEL_NOT_FOUND", "message": "AI model not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_STATUS", "message": "invalid AI model status"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "updated"})
 }
 
 func (h *Handler) ListAnswers(c *gin.Context) {

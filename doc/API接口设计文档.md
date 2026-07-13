@@ -87,8 +87,21 @@ GET   /api/v1/admin/payment/gateways?provider=epay
 ```text
 PUT   /api/v1/admin/packages/{id}
 PATCH /api/v1/admin/packages/{id}/status
+POST  /api/v1/admin/packages/{id}/grant/{userId}
 PATCH /api/v1/admin/coupons/{id}/status
 ```
+
+套餐发放接口会直接为指定用户创建套餐实例，不会创建支付订单；只允许发放当前已上架套餐。
+
+### AI 模型维护
+
+```text
+GET   /api/v1/admin/ai/models
+PUT   /api/v1/admin/ai/models/{id}
+PATCH /api/v1/admin/ai/models/{id}/status
+```
+
+模型可修改服务商、名称、优先级、超时与计费参数。调用链按优先级从小到大依次尝试，只有启用的模型会进入故障转移；列表不会返回服务商 API Key 明文。
 
 ### 管理员操作日志
 

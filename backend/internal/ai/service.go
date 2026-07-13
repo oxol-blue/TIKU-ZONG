@@ -94,6 +94,26 @@ func (s *Service) CreateModel(ctx context.Context, input CreateModelInput) (uint
 	return s.store.CreateModel(ctx, input)
 }
 
+func (s *Service) UpdateModel(ctx context.Context, id uint64, input UpdateModelInput) error {
+	if id == 0 {
+		return ErrNotFound
+	}
+	if err := validateModelInput(CreateModelInput(input)); err != nil {
+		return err
+	}
+	return s.store.UpdateModel(ctx, id, input)
+}
+
+func (s *Service) UpdateModelStatus(ctx context.Context, id uint64, status int) error {
+	if id == 0 {
+		return ErrNotFound
+	}
+	if status != 0 && status != 1 {
+		return errors.New("invalid model status")
+	}
+	return s.store.UpdateModelStatus(ctx, id, status)
+}
+
 func validateModelInput(input CreateModelInput) error {
 	if input.ProviderID == 0 || strings.TrimSpace(input.Name) == "" || input.AIChargeCount < 0 || input.TimeoutSeconds < 0 {
 		return errors.New("invalid AI model")
@@ -195,7 +215,7 @@ func (s *Service) solveDirect(ctx context.Context, question, questionType string
 	if cached, err := s.store.GetCached(ctx, hash); err == nil {
 		return cached, nil
 	}
-	models, err := s.store.ListModels(ctx)
+	models, err := s.store.ListActiveModels(ctx)
 	if err != nil || len(models) == 0 {
 		return Answer{}, ErrUnavailable
 	}

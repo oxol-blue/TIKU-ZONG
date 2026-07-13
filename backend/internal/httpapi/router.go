@@ -167,6 +167,8 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.POST("/admin/ai/providers", adminOnly, aiHandler.CreateProvider)
 	protected.POST("/admin/ai/models", adminOnly, aiHandler.CreateModel)
 	protected.GET("/admin/ai/models", adminOnly, aiHandler.ListModels)
+	protected.PUT("/admin/ai/models/:id", adminOnly, aiHandler.UpdateModel)
+	protected.PATCH("/admin/ai/models/:id/status", adminOnly, aiHandler.UpdateModelStatus)
 	protected.GET("/admin/ai/answers", adminOnly, aiHandler.ListAnswers)
 	protected.GET("/admin/ai/answers/:id", adminOnly, aiHandler.GetAnswer)
 	protected.PATCH("/admin/ai/answers/:id/status", adminOnly, aiHandler.UpdateAnswerStatus)
