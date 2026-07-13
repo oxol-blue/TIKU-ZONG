@@ -43,6 +43,7 @@ type Question struct {
 	Subject     string     `json:"subject"`
 	Source      string     `json:"source"`
 	Status      int        `json:"status"`
+	Similarity  float64    `json:"similarity,omitempty"`
 	CollectedAt *time.Time `json:"collectedAt,omitempty"`
 	Options     []Option   `json:"options"`
 	Answers     []Answer   `json:"answers"`

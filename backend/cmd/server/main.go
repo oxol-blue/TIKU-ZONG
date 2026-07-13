@@ -47,7 +47,7 @@ func main() {
 		callLogger = calls.NewStore(db)
 		aiService = ai.NewService(ai.NewStore(db, cfg.EncryptionSecret))
 		ocsStore = ocs.NewStore(db)
-		ocsService = ocs.NewService(ocsStore)
+		ocsService = ocs.NewService(ocsStore, cfg.AnswerMergeRule)
 		paymentService = payment.NewService(payment.NewStore(db, cfg.EncryptionSecret), cfg.PublicBaseURL)
 		feedbackService = feedback.NewService(feedback.NewStore(db))
 	}

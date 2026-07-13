@@ -67,22 +67,170 @@ func (s *Store) Upsert(ctx context.Context, input ImportInput) (Question, bool, 
 }
 
 func (s *Store) Search(ctx context.Context, query string) (Question, error) {
+	question, _, err := s.SearchWithScore(ctx, query)
+	return question, err
+}
+
+func (s *Store) SearchWithScore(ctx context.Context, query string, optionValues ...[]string) (Question, float64, error) {
 	normalized := normalizeText(query)
 	if normalized == "" {
-		return Question{}, ErrNotFound
+		return Question{}, 0, ErrNotFound
 	}
 	var id uint64
 	err := s.db.QueryRowContext(ctx, `SELECT id FROM questions WHERE status = 1 AND question_hash = ? ORDER BY id ASC LIMIT 1`, hashText(normalized)).Scan(&id)
+	if err == nil {
+		question, getErr := s.GetByID(ctx, id)
+		question.Similarity = 1
+		return question, 1, getErr
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		err = s.db.QueryRowContext(ctx, `SELECT id FROM questions WHERE status = 1 AND INSTR(normalized_text, ?) > 0 ORDER BY CHAR_LENGTH(normalized_text), id ASC LIMIT 1`, normalized).Scan(&id)
+		if err == nil {
+			question, getErr := s.GetByID(ctx, id)
+			score := similarityScore(normalized, normalizeText(question.Question))
+			question.Similarity = score
+			return question, score, getErr
+		}
 	}
 	if errors.Is(err, sql.ErrNoRows) {
-		return Question{}, ErrNotFound
+		matchText := normalized
+		if len(optionValues) > 0 && len(optionValues[0]) > 0 {
+			matchText += " " + normalizeText(strings.Join(optionValues[0], " "))
+		}
+		question, score, candidateErr := s.searchSimilar(ctx, normalized, matchText)
+		if candidateErr == nil && score >= 0.35 {
+			question.Similarity = score
+			return question, score, nil
+		}
+		return Question{}, 0, ErrNotFound
 	}
 	if err != nil {
-		return Question{}, err
+		return Question{}, 0, err
 	}
-	return s.GetByID(ctx, id)
+	return Question{}, 0, ErrNotFound
+}
+
+func (s *Store) searchSimilar(ctx context.Context, normalized, matchText string) (Question, float64, error) {
+	terms := similarityTerms(matchText)
+	if len(terms) == 0 {
+		return Question{}, 0, ErrNotFound
+	}
+	conditions := make([]string, 0, len(terms))
+	args := make([]any, 0, len(terms))
+	for _, term := range terms {
+		conditions = append(conditions, "INSTR(normalized_text, ?) > 0")
+		args = append(args, term)
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT q.id, q.normalized_text, COALESCE((SELECT GROUP_CONCAT(qo.option_text SEPARATOR ' ') FROM question_options qo WHERE qo.question_id = q.id), '') FROM questions q WHERE q.status = 1 AND (`+strings.Join(conditions, " OR ")+") ORDER BY q.id DESC LIMIT 100", args...)
+	if err != nil {
+		return Question{}, 0, err
+	}
+	defer rows.Close()
+	var bestID uint64
+	bestScore := 0.0
+	for rows.Next() {
+		var id uint64
+		var candidate, candidateOptions string
+		if err := rows.Scan(&id, &candidate, &candidateOptions); err != nil {
+			return Question{}, 0, err
+		}
+		if candidateOptions != "" {
+			candidate += " " + normalizeText(candidateOptions)
+		}
+		score := similarityScore(matchText, candidate)
+		if score > bestScore {
+			bestID, bestScore = id, score
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return Question{}, 0, err
+	}
+	if bestID == 0 {
+		return Question{}, 0, ErrNotFound
+	}
+	question, err := s.GetByID(ctx, bestID)
+	return question, bestScore, err
+}
+
+func similarityTerms(value string) []string {
+	fields := strings.Fields(value)
+	terms := make([]string, 0, 12)
+	if len(fields) > 1 {
+		for _, field := range fields {
+			if len([]rune(field)) >= 2 {
+				terms = append(terms, field)
+			}
+			if len(terms) >= 12 {
+				break
+			}
+		}
+		return terms
+	}
+	runes := []rune(value)
+	for index := 0; index+1 < len(runes) && len(terms) < 12; index++ {
+		terms = append(terms, string(runes[index:index+2]))
+	}
+	return terms
+}
+
+func similarityScore(left, right string) float64 {
+	left = normalizeText(left)
+	right = normalizeText(right)
+	if left == "" || right == "" {
+		return 0
+	}
+	if left == right {
+		return 1
+	}
+	leftSet := ngramSet(left)
+	rightSet := ngramSet(right)
+	if len(leftSet) == 0 || len(rightSet) == 0 {
+		return 0
+	}
+	intersection := 0
+	for value := range leftSet {
+		if _, ok := rightSet[value]; ok {
+			intersection++
+		}
+	}
+	union := len(leftSet) + len(rightSet) - intersection
+	if union == 0 {
+		return 0
+	}
+	score := float64(intersection) / float64(union)
+	if strings.Contains(left, right) || strings.Contains(right, left) {
+		lengthRatio := float64(minInt(len([]rune(left)), len([]rune(right)))) / float64(maxInt(len([]rune(left)), len([]rune(right))))
+		if lengthRatio > score {
+			score = lengthRatio
+		}
+	}
+	return score
+}
+
+func ngramSet(value string) map[string]struct{} {
+	runes := []rune(value)
+	set := make(map[string]struct{}, len(runes))
+	if len(runes) == 1 {
+		set[value] = struct{}{}
+		return set
+	}
+	for index := 0; index+1 < len(runes); index++ {
+		set[string(runes[index:index+2])] = struct{}{}
+	}
+	return set
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}
+func maxInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
 }
 
 func (s *Store) ListAdmin(ctx context.Context, search, questionType, subject string, status, page, pageSize int) (QuestionPage, error) {

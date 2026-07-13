@@ -17,12 +17,17 @@ import (
 var ErrNoAnswer = errors.New("ocs source returned no answer")
 
 type Service struct {
-	store  *Store
-	client *http.Client
+	store     *Store
+	client    *http.Client
+	mergeRule string
 }
 
-func NewService(store *Store) *Service {
-	return &Service{store: store, client: &http.Client{Timeout: 6 * time.Second}}
+func NewService(store *Store, mergeRules ...string) *Service {
+	rule := "priority"
+	if len(mergeRules) > 0 && strings.EqualFold(strings.TrimSpace(mergeRules[0]), "majority") {
+		rule = "majority"
+	}
+	return &Service{store: store, client: &http.Client{Timeout: 6 * time.Second}, mergeRule: rule}
 }
 
 func (s *Service) CreateSource(ctx context.Context, input SourceInput) (Source, error) {
@@ -49,13 +54,49 @@ func (s *Service) Search(ctx context.Context, question, questionType string, opt
 	if err != nil {
 		return Result{}, err
 	}
-	for _, source := range sources {
+	if s.mergeRule != "majority" {
+		for _, source := range sources {
+			result, callErr := s.call(ctx, source, question, questionType, options)
+			if callErr == nil && strings.TrimSpace(result.Answer) != "" {
+				return result, nil
+			}
+		}
+		return Result{}, ErrNoAnswer
+	}
+	return s.majoritySearch(ctx, sources, question, questionType, options)
+}
+
+func (s *Service) majoritySearch(ctx context.Context, sources []Source, question, questionType string, options []string) (Result, error) {
+	type candidate struct {
+		result Result
+		count  int
+		order  int
+	}
+	candidates := make([]candidate, 0, len(sources))
+	counts := make(map[string]int, len(sources))
+	for order, source := range sources {
 		result, callErr := s.call(ctx, source, question, questionType, options)
 		if callErr == nil && strings.TrimSpace(result.Answer) != "" {
-			return result, nil
+			key := canonicalAnswer(result.Answer)
+			counts[key]++
+			candidates = append(candidates, candidate{result: result, order: order})
 		}
 	}
-	return Result{}, ErrNoAnswer
+	best := -1
+	for index := range candidates {
+		candidates[index].count = counts[canonicalAnswer(candidates[index].result.Answer)]
+		if best < 0 || candidates[index].count > candidates[best].count || (candidates[index].count == candidates[best].count && candidates[index].order < candidates[best].order) {
+			best = index
+		}
+	}
+	if best < 0 {
+		return Result{}, ErrNoAnswer
+	}
+	return candidates[best].result, nil
+}
+
+func canonicalAnswer(value string) string {
+	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(value))), " ")
 }
 
 func (s *Service) call(parent context.Context, source Source, question, questionType string, options []string) (Result, error) {

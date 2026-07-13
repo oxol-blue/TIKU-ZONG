@@ -22,6 +22,7 @@ type Config struct {
 	IPBlacklist           []string
 	IPWhitelist           []string
 	AdminTOTPSecret       string
+	AnswerMergeRule       string
 }
 
 // Load reads configuration from environment variables and applies local defaults.
@@ -41,6 +42,7 @@ func Load() Config {
 		IPBlacklist:           splitList(os.Getenv("IP_BLACKLIST")),
 		IPWhitelist:           splitList(os.Getenv("IP_WHITELIST")),
 		AdminTOTPSecret:       os.Getenv("ADMIN_TOTP_SECRET"),
+		AnswerMergeRule:       envOrDefault("ANSWER_MERGE_RULE", "priority"),
 	}
 }
 

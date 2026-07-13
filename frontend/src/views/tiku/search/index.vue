@@ -43,6 +43,7 @@
           <div class="result-tags">
             <el-tag :type="result.is_ai ? 'warning' : 'success'">{{ result.is_ai ? 'AI 兜底' : '题库命中' }}</el-tag>
             <el-tag type="info">{{ result.type || '其它' }}</el-tag>
+            <span v-if="result.similarity && !result.is_ai">相似度 {{ (result.similarity * 100).toFixed(1) }}%</span>
             <span class="elapsed">耗时 {{ result.search_time }} μs</span>
           </div>
         </div>

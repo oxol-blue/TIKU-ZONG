@@ -54,10 +54,10 @@ func (h *Handler) Search(c *gin.Context) {
 		}
 		return
 	}
-	question, elapsed, err := h.service.Search(c.Request.Context(), query)
+	options := splitOptions(c.Query("options"))
+	question, elapsed, similarity, err := h.service.SearchWithScore(c.Request.Context(), query, options)
 	if errors.Is(err, ErrNotFound) {
 		questionType := c.Query("type")
-		options := splitOptions(c.Query("options"))
 		if h.ocs != nil {
 			if external, externalErr := h.ocs.Search(c.Request.Context(), query, questionType, options); externalErr == nil {
 				if h.billing != nil {
@@ -131,7 +131,7 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{
-		"request_id": requestID, "question": question.Question, "answer": answer, "type": question.Type, "is_ai": false, "search_time": elapsed.Microseconds(), "sources": []string{question.Source},
+		"request_id": requestID, "question": question.Question, "answer": answer, "type": question.Type, "is_ai": false, "similarity": similarity, "search_time": elapsed.Microseconds(), "sources": []string{question.Source},
 	}})
 }
 

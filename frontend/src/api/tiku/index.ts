@@ -6,6 +6,7 @@ export interface QuestionSearchResult {
   answer: string;
   type: string;
   is_ai: boolean;
+  similarity?: number;
   search_time: number;
   sources: string[];
 }

@@ -26,3 +26,9 @@ func TestReplacePlaceholders(t *testing.T) {
 		t.Fatalf("unexpected replacement: %q", got)
 	}
 }
+
+func TestCanonicalAnswer(t *testing.T) {
+	if got := canonicalAnswer("  Answer  Text "); got != "answer text" {
+		t.Fatalf("unexpected canonical answer: %q", got)
+	}
+}

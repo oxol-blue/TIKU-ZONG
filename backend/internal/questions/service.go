@@ -34,6 +34,12 @@ func (s *Service) Search(ctx context.Context, query string) (Question, time.Dura
 	return question, time.Since(started), err
 }
 
+func (s *Service) SearchWithScore(ctx context.Context, query string, options ...[]string) (Question, time.Duration, float64, error) {
+	started := time.Now()
+	question, score, err := s.store.SearchWithScore(ctx, query, options...)
+	return question, time.Since(started), score, err
+}
+
 func (s *Service) ListAdmin(ctx context.Context, search, questionType, subject string, status, page, pageSize int) (QuestionPage, error) {
 	return s.store.ListAdmin(ctx, search, questionType, subject, status, page, pageSize)
 }
