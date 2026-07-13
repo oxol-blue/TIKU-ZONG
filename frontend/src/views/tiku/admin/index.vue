@@ -115,6 +115,37 @@
           </el-table>
           <div class="pagination"><el-pagination v-model:current-page="questionPage" v-model:page-size="questionPageSize" layout="total, sizes, prev, pager, next" :total="questionTotal" @current-change="refreshQuestions" @size-change="refreshQuestions" /></div>
         </el-tab-pane>
+
+        <el-tab-pane label="订单管理" name="orders">
+          <div class="toolbar">
+            <el-input v-model="orderSearch" clearable placeholder="订单号或用户邮箱" @keyup.enter="refreshOrders" />
+            <el-select v-model="orderStatus" clearable placeholder="订单状态" @change="refreshOrders"><el-option label="待支付" value="pending" /><el-option label="已支付" value="paid" /><el-option label="已关闭" value="closed" /><el-option label="部分退款" value="partial_refunded" /><el-option label="已退款" value="refunded" /></el-select>
+            <el-button type="primary" @click="refreshOrders">查询</el-button><el-button @click="closeOrders">关闭过期订单</el-button>
+          </div>
+          <el-table :data="orders" stripe class="table">
+            <el-table-column prop="orderNo" label="订单号" min-width="210" />
+            <el-table-column prop="userEmail" label="用户" min-width="190" />
+            <el-table-column prop="packageName" label="套餐" min-width="150" />
+            <el-table-column label="应付" width="100"><template #default="scope">¥{{ (scope.row.payableCents / 100).toFixed(2) }}</template></el-table-column>
+            <el-table-column prop="status" label="状态" width="130" />
+            <el-table-column prop="createdAt" label="创建时间" min-width="180" />
+            <el-table-column label="操作" width="120" fixed="right"><template #default="scope"><el-button v-if="scope.row.status === 'paid' || scope.row.status === 'partial_refunded'" link type="warning" @click="refund(scope.row)">退款</el-button></template></el-table-column>
+          </el-table>
+          <div class="pagination"><el-pagination v-model:current-page="orderPage" v-model:page-size="orderPageSize" layout="total, sizes, prev, pager, next" :total="orderTotal" @current-change="refreshOrders" @size-change="refreshOrders" /></div>
+        </el-tab-pane>
+
+        <el-tab-pane label="调用日志" name="calls">
+          <div class="toolbar"><el-button type="primary" @click="refreshCalls">刷新日志</el-button></div>
+          <el-table :data="callLogs" stripe class="table">
+            <el-table-column prop="requestId" label="请求 ID" min-width="190" />
+            <el-table-column prop="userId" label="用户 ID" width="90" />
+            <el-table-column prop="endpoint" label="接口" min-width="150" />
+            <el-table-column label="结果" width="90"><template #default="scope"><el-tag :type="scope.row.success ? 'success' : 'danger'">{{ scope.row.success ? '成功' : '失败' }}</el-tag></template></el-table-column>
+            <el-table-column label="来源" width="80"><template #default="scope">{{ scope.row.isAi ? 'AI' : '题库' }}</template></el-table-column>
+            <el-table-column label="耗时" width="100"><template #default="scope">{{ (scope.row.elapsedMicros / 1000).toFixed(2) }} ms</template></el-table-column>
+            <el-table-column prop="httpStatus" label="HTTP" width="80" /><el-table-column prop="errorCode" label="错误码" width="140" /><el-table-column prop="createdAt" label="时间" min-width="180" />
+          </el-table>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
     <el-dialog v-model="questionDialog" title="题目详情" width="720px">
@@ -132,7 +163,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, getAdminQuestion, listAdminUsers, listAdminQuestions, listAiModels, listOcsSources, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem } from "@/api/tiku";
+import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createOcsSource, getAdminQuestion, listAdminCalls, listAdminOrders, listAdminUsers, listAdminQuestions, listAiModels, listOcsSources, refundOrder, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, type AdminCallLog, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem } from "@/api/tiku";
 
 const activeTab = ref("ocs");
 const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
@@ -162,9 +193,18 @@ const questionPage = ref(1);
 const questionPageSize = ref(20);
 const questionTotal = ref(0);
 const questionTypes = [{ label: "选择题", value: "single" }, { label: "多选题", value: "multiple" }, { label: "判断题", value: "judge" }, { label: "简答题", value: "short_answer" }, { label: "填空题", value: "fill" }, { label: "其它", value: "other" }];
+const orders = ref<AdminOrderItem[]>([]);
+const orderSearch = ref("");
+const orderStatus = ref("");
+const orderPage = ref(1);
+const orderPageSize = ref(20);
+const orderTotal = ref(0);
+const callLogs = ref<AdminCallLog[]>([]);
 const refresh = async () => { ocsSources.value = (await listOcsSources()).data ?? []; models.value = (await listAiModels()).data ?? []; };
 const refreshUsers = async () => { const result = await listAdminUsers({ page: userPage.value, pageSize: userPageSize.value, search: userSearch.value || undefined, status: userStatus.value }); users.value = result.data?.items ?? []; userTotal.value = result.data?.total ?? 0; };
 const refreshQuestions = async () => { const result = await listAdminQuestions({ page: questionPage.value, pageSize: questionPageSize.value, search: questionSearch.value || undefined, subject: questionSubject.value || undefined, type: questionType.value || undefined, status: questionStatus.value }); questions.value = result.data?.items ?? []; questionTotal.value = result.data?.total ?? 0; };
+const refreshOrders = async () => { const result = await listAdminOrders({ page: orderPage.value, pageSize: orderPageSize.value, search: orderSearch.value || undefined, status: orderStatus.value || undefined }); orders.value = result.data?.items ?? []; orderTotal.value = result.data?.total ?? 0; };
+const refreshCalls = async () => { callLogs.value = (await listAdminCalls()).data ?? []; };
 const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
@@ -176,7 +216,9 @@ const toggleStatus = async (user: AdminUserItem) => { await updateAdminUserStatu
 const changeRole = async (user: AdminUserItem, role: "admin" | "user") => { try { await updateAdminUserRole(user.id, role); ElMessage.success("用户角色已更新"); } catch { await refreshUsers(); } };
 const toggleQuestion = async (question: AdminQuestionItem) => { await updateAdminQuestionStatus(question.id, question.status === 1 ? 0 : 1); ElMessage.success("题目状态已更新"); await refreshQuestions(); };
 const showQuestion = async (id: number) => { questionDetail.value = (await getAdminQuestion(id)).data; questionDialog.value = true; };
-onMounted(async () => { await refresh(); await refreshUsers(); await refreshQuestions(); });
+const closeOrders = async () => { const result = await closeExpiredOrders(); ElMessage.success(`已关闭 ${result.data?.count ?? 0} 个过期订单`); await refreshOrders(); };
+const refund = async (order: AdminOrderItem) => { const value = window.prompt(`请输入退款金额（分），最多 ${order.payableCents - order.refundedCents}`); const amount = Number(value); if (!Number.isInteger(amount) || amount <= 0) return; await refundOrder(order.orderNo, { amountCents: amount, reason: "管理员后台退款" }); ElMessage.success("退款已记录"); await refreshOrders(); };
+onMounted(async () => { await refresh(); await refreshUsers(); await refreshQuestions(); await refreshOrders(); await refreshCalls(); });
 </script>
 
 <style scoped lang="scss">

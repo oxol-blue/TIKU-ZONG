@@ -173,6 +173,64 @@ func (s *Store) ListOrders(ctx context.Context, userID uint64) ([]Order, error) 
 	return items, rows.Err()
 }
 
+func (s *Store) ListAdminOrders(ctx context.Context, search, status string, page, pageSize int) (OrderPage, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	where := "WHERE 1 = 1"
+	args := make([]any, 0, 4)
+	if strings.TrimSpace(search) != "" {
+		where += " AND (o.order_no LIKE ? OR u.email LIKE ?)"
+		value := "%" + strings.TrimSpace(search) + "%"
+		args = append(args, value, value)
+	}
+	if strings.TrimSpace(status) != "" {
+		where += " AND o.status = ?"
+		args = append(args, strings.TrimSpace(status))
+	}
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM payment_orders o JOIN users u ON u.id = o.user_id "+where, args...).Scan(&total); err != nil {
+		return OrderPage{}, err
+	}
+	args = append(args, (page-1)*pageSize, pageSize)
+	rows, err := s.db.QueryContext(ctx, `SELECT o.id, o.order_no, o.user_id, u.email, o.package_id, p.name, o.provider,
+		COALESCE(o.coupon_id, 0), o.coupon_code, o.amount_cents, o.payable_cents, o.discount_cents,
+		o.refunded_cents, o.status, o.provider_trade_no, o.package_instance_id, o.expires_at,
+		o.paid_at, o.closed_at, o.created_at
+		FROM payment_orders o JOIN users u ON u.id = o.user_id JOIN packages p ON p.id = o.package_id `+where+`
+		ORDER BY o.id DESC LIMIT ?, ?`, args...)
+	if err != nil {
+		return OrderPage{}, err
+	}
+	defer rows.Close()
+	items := make([]AdminOrderView, 0)
+	for rows.Next() {
+		var item AdminOrderView
+		if err := rows.Scan(&item.ID, &item.OrderNo, &item.UserID, &item.UserEmail, &item.PackageID, &item.PackageName,
+			&item.Provider, &item.CouponID, &item.CouponCode, &item.AmountCents, &item.PayableCents, &item.DiscountCents,
+			&item.RefundedCents, &item.Status, &item.ProviderTradeNo, &item.PackageInstanceID, &item.ExpiresAt,
+			&item.PaidAt, &item.ClosedAt, &item.CreatedAt); err != nil {
+			return OrderPage{}, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return OrderPage{}, err
+	}
+	return OrderPage{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+func normalizePage(page, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
 func (s *Store) MarkPaidAndGrant(ctx context.Context, notification Notification) (Order, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

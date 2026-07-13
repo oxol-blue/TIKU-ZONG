@@ -54,6 +54,18 @@ type Order struct {
 	CreatedAt         time.Time  `json:"createdAt"`
 }
 
+type AdminOrderView struct {
+	Order
+	UserEmail string `json:"userEmail"`
+}
+
+type OrderPage struct {
+	Items    []AdminOrderView `json:"items"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"pageSize"`
+	Total    int              `json:"total"`
+}
+
 type CreateOrderInput struct {
 	PackageID  uint64 `json:"packageId" binding:"required"`
 	Provider   string `json:"provider"`

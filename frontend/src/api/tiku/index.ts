@@ -141,3 +141,37 @@ export const getAdminQuestion = (id: number) =>
   koi.get<{ code: number; message: string; data: AdminQuestionDetail }>(`/api/v1/admin/questions/${id}`);
 export const updateAdminQuestionStatus = (id: number, status: number) =>
   koi.patch<{ code: number; message: string }>(`/api/v1/admin/questions/${id}/status`, { status });
+
+export interface AdminOrderItem extends OrderItem {
+  userId: number;
+  userEmail: string;
+  amountCents: number;
+  payableCents: number;
+  discountCents?: number;
+  providerTradeNo?: string;
+  packageInstanceId?: number;
+  closedAt?: string;
+}
+
+export interface AdminCallLog {
+  requestId: string;
+  userId?: number;
+  apiKeyId?: number;
+  endpoint: string;
+  questionHash: string;
+  success: boolean;
+  isAi: boolean;
+  elapsedMicros: number;
+  httpStatus: number;
+  errorCode: string;
+  createdAt: string;
+}
+
+export const listAdminOrders = (params: { page?: number; pageSize?: number; search?: string; status?: string }) =>
+  koi.get<{ code: number; message: string; data: { items: AdminOrderItem[]; page: number; pageSize: number; total: number } }>("/api/v1/admin/orders", params);
+export const closeExpiredOrders = () =>
+  koi.post<{ code: number; message: string; data: { count: number } }>("/api/v1/admin/orders/close-expired");
+export const refundOrder = (orderNo: string, data: { amountCents: number; reason?: string }) =>
+  koi.post<{ code: number; message: string; data: AdminOrderItem }>(`/api/v1/admin/orders/${encodeURIComponent(orderNo)}/refund`, data);
+export const listAdminCalls = (limit = 100) =>
+  koi.get<{ code: number; message: string; data: AdminCallLog[] }>("/api/v1/admin/calls", { limit });

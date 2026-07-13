@@ -46,6 +46,17 @@ func (h *Handler) MyOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
 }
 
+func (h *Handler) AdminOrders(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	data, err := h.service.Store().ListAdminOrders(c.Request.Context(), c.Query("search"), c.Query("status"), page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load orders"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": data})
+}
+
 func (h *Handler) Notify(c *gin.Context) {
 	if h.service == nil {
 		c.String(http.StatusServiceUnavailable, "fail")
