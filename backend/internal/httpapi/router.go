@@ -198,6 +198,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 		protected.POST("/admin/orders/:orderNo/refund", adminOnly, paymentHandler.Refund)
 		protected.GET("/admin/orders/:orderNo/refunds", adminOnly, paymentHandler.Refunds)
 		protected.GET("/admin/orders/reconciliation", adminOnly, paymentHandler.Reconciliation)
+		protected.POST("/admin/orders/repair-package-instances", adminOnly, paymentHandler.RepairPackageInstances)
 		publicPayment := router.Group("/api/payment")
 		publicPayment.GET("/notify/:provider", paymentHandler.Notify)
 		publicPayment.POST("/notify/:provider", paymentHandler.Notify)

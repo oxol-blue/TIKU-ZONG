@@ -344,6 +344,8 @@ export interface ReconciliationIssue {
 }
 export const reconcileOrders = () =>
   koi.get<{ code: number; message: string; data: { issues: ReconciliationIssue[]; count: number } }>("/api/v1/admin/orders/reconciliation");
+export const repairPackageInstances = () =>
+  koi.post<{ code: number; message: string; data: { count: number } }>("/api/v1/admin/orders/repair-package-instances");
 export const listAdminCalls = (limit = 100) =>
   koi.get<{ code: number; message: string; data: AdminCallLog[] }>("/api/v1/admin/calls", { limit });
 export interface AdminAuditLog {

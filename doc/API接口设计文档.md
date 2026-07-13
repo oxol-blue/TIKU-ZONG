@@ -63,6 +63,8 @@ GET /api/ocs/search?key=API_KEY&q=题目
 
 `GET /api/v1/admin/orders/reconciliation` 执行只读订单对账，检查已支付订单缺少套餐实例、过期未关闭订单以及退款累计不一致等异常。
 
+`POST /api/v1/admin/orders/repair-package-instances` 为已支付或部分退款、但缺少套餐实例关联的历史订单补偿套餐实例。补偿始终以原支付时间作为套餐开始时间，沿用订单对应套餐的有效期、普通次数和 AI 次数；全额退款订单不会补偿。事务锁定订单并要求 `package_instance_id = 0`，重复调用安全且不会重复发放。
+
 `GET /api/v1/calls/my`（登录用户）返回当前用户最近调用记录，不返回题目明文，仅返回题目哈希、接口、来源、耗时和状态。
 
 `GET /api/v1/search-history/my`（登录用户）返回当前用户成功搜索的题目、文字答案、题型、来源、AI 标记、耗时和时间。支持 `page`、`pageSize` 分页以及 `isAi=true|false` 筛选；历史仅按当前 JWT 用户 ID 查询，API 调用日志中的失败请求不会写入该记录。

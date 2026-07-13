@@ -92,6 +92,12 @@ func runPaymentMaintenance(service *payment.Service) {
 			} else if len(issues) > 0 {
 				log.Printf("payment reconciliation found %d issue(s)", len(issues))
 			}
+			repaired, repairErr := service.Store().RepairMissingPackageInstances(context.Background())
+			if repairErr != nil {
+				log.Printf("payment package-instance repair failed: %v", repairErr)
+			} else if repaired > 0 {
+				log.Printf("payment package-instance repair restored %d order(s)", repaired)
+			}
 		default:
 		}
 	}

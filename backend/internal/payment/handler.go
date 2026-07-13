@@ -196,6 +196,18 @@ func (h *Handler) Reconciliation(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{"issues": items, "count": len(items)}})
 }
 
+func (h *Handler) RepairPackageInstances(c *gin.Context) {
+	if h.service == nil {
+		return
+	}
+	count, err := h.service.Store().RepairMissingPackageInstances(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "REPAIR_FAILED", "message": "failed to repair package instances"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "repaired", "data": gin.H{"count": count}})
+}
+
 func currentUser(c *gin.Context) (auth.User, bool) {
 	value, exists := c.Get("currentUser")
 	user, ok := value.(auth.User)

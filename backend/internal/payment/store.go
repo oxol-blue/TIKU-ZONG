@@ -275,10 +275,7 @@ func (s *Store) MarkPaidAndGrant(ctx context.Context, notification Notification)
 		return Order{}, errors.New("package is no longer available")
 	}
 	now := time.Now().UTC()
-	remaining := totalCount
-	if duration != nil && totalCount == 0 {
-		remaining = -1
-	}
+	remaining := remainingForPackage(totalCount, duration)
 	result, err := tx.ExecContext(ctx, `INSERT INTO package_instances (user_id, package_id, starts_at, expires_at, remaining_count, remaining_ai_count) VALUES (?, ?, ?, ?, ?, ?)`, item.UserID, item.PackageID, now, expiresForPackage(now, duration), remaining, aiCount)
 	if err != nil {
 		return Order{}, err
@@ -314,6 +311,76 @@ func expiresForPackage(start time.Time, duration *int64) *time.Time {
 	}
 	expires := start.Add(time.Duration(*duration) * time.Second)
 	return &expires
+}
+
+func remainingForPackage(totalCount int, duration *int64) int {
+	if duration != nil && totalCount == 0 {
+		return -1
+	}
+	return totalCount
+}
+
+// RepairMissingPackageInstances safely grants packages for orders that were
+// paid but lost their package-instance link due to a historic partial failure.
+// Fully refunded orders are intentionally excluded: there is no entitlement to
+// restore. The transaction locks each order and only updates an empty link, so
+// repeated maintenance runs are idempotent.
+func (s *Store) RepairMissingPackageInstances(ctx context.Context) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	type candidate struct {
+		id        uint64
+		userID    uint64
+		packageID uint64
+		startsAt  time.Time
+		duration  *int64
+		total     int
+		aiCount   int
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT o.id, o.user_id, o.package_id, COALESCE(o.paid_at, o.created_at), p.duration_seconds, p.total_count, p.ai_count
+		FROM payment_orders o JOIN packages p ON p.id = o.package_id
+		WHERE o.status IN (?, ?) AND o.package_instance_id = 0 FOR UPDATE`, OrderPaid, OrderPartialRefunded)
+	if err != nil {
+		return 0, err
+	}
+	candidates := make([]candidate, 0)
+	for rows.Next() {
+		var item candidate
+		if err := rows.Scan(&item.id, &item.userID, &item.packageID, &item.startsAt, &item.duration, &item.total, &item.aiCount); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		candidates = append(candidates, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, err
+	}
+	rows.Close()
+	for _, item := range candidates {
+		result, err := tx.ExecContext(ctx, `INSERT INTO package_instances (user_id, package_id, starts_at, expires_at, remaining_count, remaining_ai_count) VALUES (?, ?, ?, ?, ?, ?)`, item.userID, item.packageID, item.startsAt, expiresForPackage(item.startsAt, item.duration), remainingForPackage(item.total, item.duration), item.aiCount)
+		if err != nil {
+			return 0, err
+		}
+		instanceID, err := result.LastInsertId()
+		if err != nil {
+			return 0, err
+		}
+		updated, err := tx.ExecContext(ctx, `UPDATE payment_orders SET package_instance_id = ? WHERE id = ? AND package_instance_id = 0`, instanceID, item.id)
+		if err != nil {
+			return 0, err
+		}
+		if affected, _ := updated.RowsAffected(); affected != 1 {
+			return 0, errors.New("payment order package instance was updated concurrently")
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return int64(len(candidates)), nil
 }
 
 func (s *Store) CloseExpired(ctx context.Context, now time.Time) (int64, error) {
@@ -439,7 +506,7 @@ func (s *Store) ListRefunds(ctx context.Context, orderNo string) ([]Refund, erro
 
 func (s *Store) Reconcile(ctx context.Context, now time.Time) ([]ReconciliationIssue, error) {
 	issues := make([]ReconciliationIssue, 0)
-	rows, err := s.db.QueryContext(ctx, `SELECT order_no FROM payment_orders WHERE status IN (?, ?, ?) AND package_instance_id = 0`, OrderPaid, OrderPartialRefunded, OrderRefunded)
+	rows, err := s.db.QueryContext(ctx, `SELECT order_no FROM payment_orders WHERE status IN (?, ?) AND package_instance_id = 0`, OrderPaid, OrderPartialRefunded)
 	if err != nil {
 		return nil, err
 	}

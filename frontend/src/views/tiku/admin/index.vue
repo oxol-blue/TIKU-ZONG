@@ -294,7 +294,7 @@
           <div class="toolbar">
             <el-input v-model="orderSearch" clearable placeholder="订单号或用户邮箱" @keyup.enter="refreshOrders" />
             <el-select v-model="orderStatus" clearable placeholder="订单状态" @change="refreshOrders"><el-option label="待支付" value="pending" /><el-option label="已支付" value="paid" /><el-option label="已关闭" value="closed" /><el-option label="部分退款" value="partial_refunded" /><el-option label="已退款" value="refunded" /></el-select>
-            <el-button type="primary" @click="refreshOrders">查询</el-button><el-button @click="closeOrders">关闭过期订单</el-button><el-button type="warning" @click="runReconciliation">订单对账</el-button>
+            <el-button type="primary" @click="refreshOrders">查询</el-button><el-button @click="closeOrders">关闭过期订单</el-button><el-button type="warning" @click="runReconciliation">订单对账</el-button><el-button type="danger" :loading="repairing" @click="repairOrderPackages">补偿套餐实例</el-button>
           </div>
           <el-table :data="orders" stripe class="table">
             <el-table-column prop="orderNo" label="订单号" min-width="210" />
@@ -394,7 +394,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage, type UploadFile } from "element-plus";
-import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createInvite, createOcsSource, createAnnouncement, getAdminAiAnswer, getAdminQuestion, getAdminSettings, getDashboardStats, getPaymentGateway, grantAdminPackage, importQuestionFile as uploadQuestionFile, importQuestions, listAdminAiAnswers, listAdminAuditLogs, listAdminCalls, listAdminFeedback, listAdminOrders, listAdminUsers, listAdminQuestions, listAdminPackages, listAdminCoupons, listAdminAnnouncements, listAiModels, listInvites, listOrderRefunds, listOcsSources, reconcileOrders, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, updateAdminPackageStatus, updateAdminPackage, updateAdminCouponStatus, updateAdminSettings, updateAiModel, updateAiModelStatus, updateAnnouncement, updateAnnouncementStatus, updateOcsSource, updateOcsSourceStatus, type AdminAiAnswer, type AdminAuditLog, type AdminCallLog, type AdminFeedbackItem, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem, type DashboardStats, type InviteItem, type ReconciliationIssue, type RefundItem, type PackageItem, type CouponItem, type AnnouncementItem, type SystemSettings } from "@/api/tiku";
+import { closeExpiredOrders, configurePaymentGateway, createAdminPackage, createAiModel, createAiProvider, createCoupon, createInvite, createOcsSource, createAnnouncement, getAdminAiAnswer, getAdminQuestion, getAdminSettings, getDashboardStats, getPaymentGateway, grantAdminPackage, importQuestionFile as uploadQuestionFile, importQuestions, listAdminAiAnswers, listAdminAuditLogs, listAdminCalls, listAdminFeedback, listAdminOrders, listAdminUsers, listAdminQuestions, listAdminPackages, listAdminCoupons, listAdminAnnouncements, listAiModels, listInvites, listOrderRefunds, listOcsSources, reconcileOrders, repairPackageInstances, refundOrder, updateAdminAiAnswerStatus, updateAdminQuestionStatus, updateAdminUserRole, updateAdminUserStatus, updateAdminPackageStatus, updateAdminPackage, updateAdminCouponStatus, updateAdminSettings, updateAiModel, updateAiModelStatus, updateAnnouncement, updateAnnouncementStatus, updateOcsSource, updateOcsSourceStatus, type AdminAiAnswer, type AdminAuditLog, type AdminCallLog, type AdminFeedbackItem, type AdminOrderItem, type AdminQuestionDetail, type AdminQuestionItem, type AdminUserItem, type DashboardStats, type InviteItem, type ReconciliationIssue, type RefundItem, type PackageItem, type CouponItem, type AnnouncementItem, type SystemSettings } from "@/api/tiku";
 import { QUESTION_TYPES } from "@/constants/question";
 
 const activeTab = ref("ocs");
@@ -467,6 +467,7 @@ const refunds = ref<RefundItem[]>([]);
 const refundDialog = ref(false);
 const reconciliationIssues = ref<ReconciliationIssue[]>([]);
 const reconciliationDialog = ref(false);
+const repairing = ref(false);
 const callLogs = ref<AdminCallLog[]>([]);
 const auditLogs = ref<AdminAuditLog[]>([]);
 const auditSearch = ref("");
@@ -592,6 +593,7 @@ const toggleQuestion = async (question: AdminQuestionItem) => { await updateAdmi
 const showQuestion = async (id: number) => { questionDetail.value = (await getAdminQuestion(id)).data; questionDialog.value = true; };
 const showRefunds = async (order: AdminOrderItem) => { refunds.value = (await listOrderRefunds(order.orderNo)).data ?? []; refundDialog.value = true; };
 const runReconciliation = async () => { reconciliationIssues.value = (await reconcileOrders()).data?.issues ?? []; reconciliationDialog.value = true; };
+const repairOrderPackages = async () => { repairing.value = true; try { const count = (await repairPackageInstances()).data?.count ?? 0; ElMessage.success(count ? `已补偿 ${count} 个套餐实例` : "没有需要补偿的套餐实例"); await refreshOrders(); await runReconciliation(); } finally { repairing.value = false; } };
 const closeOrders = async () => { const result = await closeExpiredOrders(); ElMessage.success(`已关闭 ${result.data?.count ?? 0} 个过期订单`); await refreshOrders(); };
 const refund = async (order: AdminOrderItem) => { const value = window.prompt(`请输入退款金额（分），最多 ${order.payableCents - order.refundedCents}`); const amount = Number(value); if (!Number.isInteger(amount) || amount <= 0) return; const refundNo = `admin-${order.orderNo}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; await refundOrder(order.orderNo, { amountCents: amount, reason: "管理员后台退款", refundNo }); ElMessage.success("退款已记录"); await refreshOrders(); await showRefunds(order); };
 const toggleAiAnswer = async (answer: AdminAiAnswer) => { await updateAdminAiAnswerStatus(answer.id, answer.status === 1 ? 0 : 1); ElMessage.success("AI 答案状态已更新"); await refreshAiAnswers(); };
