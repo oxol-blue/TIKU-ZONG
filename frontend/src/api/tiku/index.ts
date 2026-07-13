@@ -81,3 +81,18 @@ export const createApiKey = () =>
   koi.post<{ code: number; message: string; data: { key: string; info: ApiKeyView } }>("/api/v1/api-key");
 
 export const getOcsConfig = () => koi.get<any>("/api/ocs/config", { key: "" });
+
+export const listOcsSources = () => koi.get<{ code: number; message: string; data: any[] }>("/api/v1/admin/ocs/sources");
+export const createOcsSource = (data: Record<string, unknown>) =>
+  koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/ocs/sources", data);
+export const createAiProvider = (data: Record<string, unknown>) =>
+  koi.post<{ code: number; message: string; data: { id: number } }>("/api/v1/admin/ai/providers", data);
+export const createAiModel = (data: Record<string, unknown>) =>
+  koi.post<{ code: number; message: string; data: { id: number } }>("/api/v1/admin/ai/models", data);
+export const listAiModels = () => koi.get<{ code: number; message: string; data: any[] }>("/api/v1/admin/ai/models");
+export const configurePaymentGateway = (data: Record<string, unknown>) =>
+  koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/payment/gateways", data);
+export const createAdminPackage = (data: Record<string, unknown>) =>
+  koi.post<{ code: number; message: string; data: PackageItem }>("/api/v1/admin/packages", data);
+export const createCoupon = (data: Record<string, unknown>) =>
+  koi.post<{ code: number; message: string; data: any }>("/api/v1/admin/coupons", data);

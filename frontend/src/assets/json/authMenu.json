@@ -589,6 +589,21 @@
       "isTag": "1",
       "isAffix": "0",
       "redirect": ""
+    },
+    {
+      "menuId": 104,
+      "menuName": "题库管理后台",
+      "parentId": 10,
+      "menuType": "2",
+      "path": "/tiku/admin",
+      "name": "tikuAdminPage",
+      "component": "tiku/admin/index",
+      "icon": "koi-setting",
+      "isVisible": "0",
+      "isKeepAlive": "1",
+      "isTag": "0",
+      "isAffix": "0",
+      "redirect": ""
     }
   ]
 }
