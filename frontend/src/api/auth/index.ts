@@ -15,12 +15,14 @@ export interface AuthSession {
   expiresIn: number;
 }
 
-export const login = (data: { email: string; password: string }) =>
+export const login = (data: { email: string; password: string; captchaId?: string; captchaCode?: string }) =>
   koi.post<{ code: number; message: string; data: AuthSession }>("/api/v1/auth/login", data);
+
+export const getCaptcha = () =>
+  koi.get<{ code: number; message: string; data: { captchaId: string; image: string } }>("/api/v1/auth/captcha");
 
 export const register = (data: { email: string; password: string }) =>
   koi.post<{ code: number; message: string; data: AuthSession }>("/api/v1/auth/register", data);
 
 export const refresh = (refreshToken: string) =>
   koi.post<{ code: number; message: string; data: AuthSession }>("/api/v1/auth/refresh", { refreshToken });
-

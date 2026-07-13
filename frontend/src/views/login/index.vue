@@ -195,7 +195,7 @@ import type { FormInstance, FormRules } from "element-plus";
 import { koiMsgWarning, koiMsgError } from "@/utils/koi.ts";
 import { useRouter } from "vue-router";
 // import { koiLogin, getCaptcha } from "@/api/system/login/index.ts";
-import { login } from "@/api/auth/index.ts";
+import { getCaptcha, login } from "@/api/auth/index.ts";
 import useUserStore from "@/stores/modules/user.ts";
 import useAuthStore from "@/stores/modules/auth.ts";
 import useKeepAliveStore from "@/stores/modules/keepAlive.ts";
@@ -270,15 +270,13 @@ const loginRules: any = reactive<FormRules<ILoginUser>>({
 /** 获取验证码 */
 const handleCaptcha = async () => {
   userStore.setToken("");
-  
-  // try {
-  //   const res: any = await getCaptcha();
-  //   loginForm.codeKey = res.data.codeKey;
-  //   loginForm.captchaPicture = res.data.captchaPicture;
-  // } catch (error) {
-  //   console.log(error);
-  //   koiMsgError(t("msg.yzmFail"));
-  // }
+  try {
+    const response = await getCaptcha();
+    loginForm.codeKey = response.data.captchaId;
+    loginForm.captchaPicture = response.data.image;
+  } catch {
+    koiMsgError(t("msg.yzmFail"));
+  }
 };
 
 // const koiTimer = ref();
@@ -322,7 +320,7 @@ const handleKoiLogin = () => {
         authStore.$reset();
         resetRouter();
         // 1、执行登录接口
-        const res = await login({ email: loginName, password: String(password) });
+        const res = await login({ email: loginName, password: String(password), captchaId: String(codeKey), captchaCode: String(securityCode) });
         userStore.setToken(res.data.accessToken);
         userStore.setRefreshToken(res.data.refreshToken);
 
@@ -358,6 +356,7 @@ const handleKoiLogin = () => {
         // 5、跳转到首页（所有操作完成后）
         await router.replace(HOME_URL);
       } catch (error) {
+        await handleCaptcha();
         // 等待1秒关闭loading
         let loadingTime = 1;
         setInterval(() => {

@@ -8,6 +8,7 @@ import (
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/auth"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/billing"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/calls"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/captcha"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/config"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/database"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/httpapi"
@@ -35,8 +36,9 @@ func main() {
 	var aiService *ai.Service
 	var ocsStore *ocs.Store
 	var paymentService *payment.Service
+	captchaStore := captcha.NewStore()
 	if db != nil {
-		authService = auth.NewService(auth.NewStore(db), cfg.JWTSecret)
+		authService = auth.NewService(auth.NewStore(db), cfg.JWTSecret, captchaStore)
 		questionService = questions.NewService(questions.NewStore(db))
 		billingService = billing.NewService(billing.NewStore(db))
 		callLogger = calls.NewStore(db)

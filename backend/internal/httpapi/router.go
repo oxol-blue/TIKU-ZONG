@@ -48,6 +48,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	authRoutes := api.Group("/auth")
 	authRoutes.POST("/register", authHandler.Register)
 	authRoutes.POST("/login", authHandler.Login)
+	authRoutes.GET("/captcha", authHandler.Captcha)
 	authRoutes.POST("/refresh", authHandler.Refresh)
 
 	protected := api.Group("")

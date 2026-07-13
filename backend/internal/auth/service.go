@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/captcha"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -16,15 +17,21 @@ var (
 	ErrAccountLocked      = errors.New("account temporarily locked")
 	ErrAccountDisabled    = errors.New("account disabled")
 	ErrInvalidInput       = errors.New("invalid input")
+	ErrCaptchaRequired    = errors.New("captcha required or invalid")
 )
 
 type Service struct {
-	store  *Store
-	secret string
+	store   *Store
+	secret  string
+	captcha *captcha.Store
 }
 
-func NewService(store *Store, secret string) *Service {
-	return &Service{store: store, secret: secret}
+func NewService(store *Store, secret string, captchaStores ...*captcha.Store) *Service {
+	var captchaStore *captcha.Store
+	if len(captchaStores) > 0 {
+		captchaStore = captchaStores[0]
+	}
+	return &Service{store: store, secret: secret, captcha: captchaStore}
 }
 
 type Session struct {
@@ -50,7 +57,7 @@ func (s *Service) Register(ctx context.Context, email, password string) (Session
 	return s.issueSession(ctx, user)
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (Session, error) {
+func (s *Service) Login(ctx context.Context, email, password, captchaID, captchaCode string) (Session, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	user, passwordHash, err := s.store.GetUserByEmail(ctx, email)
 	if errors.Is(err, ErrNotFound) {
@@ -64,6 +71,9 @@ func (s *Service) Login(ctx context.Context, email, password string) (Session, e
 	}
 	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
 		return Session{}, ErrAccountLocked
+	}
+	if user.FailedLoginCount >= 3 && (s.captcha == nil || !s.captcha.Verify(captchaID, captchaCode)) {
+		return Session{}, ErrCaptchaRequired
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
 		var lockedUntil *time.Time

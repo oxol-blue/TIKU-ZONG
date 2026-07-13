@@ -14,8 +14,10 @@ type Handler struct {
 func NewHandler(service *Service) *Handler { return &Handler{service: service} }
 
 type credentialsRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Email       string `json:"email" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	CaptchaID   string `json:"captchaId"`
+	CaptchaCode string `json:"captchaCode"`
 }
 
 type refreshRequest struct {
@@ -48,12 +50,25 @@ func (h *Handler) Login(c *gin.Context) {
 		serviceUnavailable(c)
 		return
 	}
-	session, err := h.service.Login(c.Request.Context(), request.Email, request.Password)
+	session, err := h.service.Login(c.Request.Context(), request.Email, request.Password, request.CaptchaID, request.CaptchaCode)
 	if err != nil {
 		handleAuthError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": session})
+}
+
+func (h *Handler) Captcha(c *gin.Context) {
+	if h.service == nil || h.service.captcha == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "SERVICE_UNAVAILABLE", "message": "captcha service is unavailable"})
+		return
+	}
+	id, image, err := h.service.captcha.Generate()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "CAPTCHA_FAILED", "message": "failed to generate captcha"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{"captchaId": id, "image": image}})
 }
 
 func (h *Handler) Refresh(c *gin.Context) {
@@ -202,6 +217,8 @@ func handleAuthError(c *gin.Context, err error) {
 		status, code, message = http.StatusLocked, "ACCOUNT_LOCKED", "account is temporarily locked"
 	case errors.Is(err, ErrAccountDisabled):
 		status, code, message = http.StatusForbidden, "ACCOUNT_DISABLED", "account is disabled"
+	case errors.Is(err, ErrCaptchaRequired):
+		status, code, message = http.StatusBadRequest, "CAPTCHA_REQUIRED", "captcha is required or invalid"
 	}
 	c.AbortWithStatusJSON(status, gin.H{"code": code, "message": message})
 }
