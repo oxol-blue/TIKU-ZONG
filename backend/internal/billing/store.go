@@ -90,7 +90,10 @@ func (s *Store) ListInstances(ctx context.Context, userID uint64) ([]PackageInst
 	return items, rows.Err()
 }
 
-func (s *Store) Consume(ctx context.Context, userID, packageID uint64, kind, requestID, endpoint string) (PackageInstance, error) {
+func (s *Store) Consume(ctx context.Context, userID, packageID uint64, kind, requestID, endpoint string, amount int) (PackageInstance, error) {
+	if amount <= 0 {
+		amount = 1
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return PackageInstance{}, err
@@ -117,8 +120,8 @@ func (s *Store) Consume(ctx context.Context, userID, packageID uint64, kind, req
 		}
 		available := item.RemainingCount == -1
 		if kind == UsageAI {
-			available = item.RemainingAICount > 0
-		} else if item.RemainingCount > 0 {
+			available = item.RemainingAICount >= amount
+		} else if item.RemainingCount >= amount {
 			available = true
 		}
 		if available {
@@ -131,14 +134,14 @@ func (s *Store) Consume(ctx context.Context, userID, packageID uint64, kind, req
 		return PackageInstance{}, ErrNoQuota
 	}
 	if kind == UsageAI {
-		_, err = tx.ExecContext(ctx, `UPDATE package_instances SET remaining_ai_count = remaining_ai_count - 1 WHERE id = ? AND remaining_ai_count > 0`, selected.ID)
+		_, err = tx.ExecContext(ctx, `UPDATE package_instances SET remaining_ai_count = remaining_ai_count - ? WHERE id = ? AND remaining_ai_count >= ?`, amount, selected.ID, amount)
 	} else if selected.RemainingCount > 0 {
-		_, err = tx.ExecContext(ctx, `UPDATE package_instances SET remaining_count = remaining_count - 1 WHERE id = ? AND remaining_count > 0`, selected.ID)
+		_, err = tx.ExecContext(ctx, `UPDATE package_instances SET remaining_count = remaining_count - ? WHERE id = ? AND remaining_count >= ?`, amount, selected.ID, amount)
 	}
 	if err != nil {
 		return PackageInstance{}, err
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO package_consumptions (instance_id, user_id, kind, amount, request_id, endpoint) VALUES (?, ?, ?, 1, ?, ?)`, selected.ID, userID, kind, requestID, endpoint); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO package_consumptions (instance_id, user_id, kind, amount, request_id, endpoint) VALUES (?, ?, ?, ?, ?, ?)`, selected.ID, userID, kind, amount, requestID, endpoint); err != nil {
 		return PackageInstance{}, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -148,7 +151,9 @@ func (s *Store) Consume(ctx context.Context, userID, packageID uint64, kind, req
 		selected.RemainingCount--
 	}
 	if kind == UsageAI {
-		selected.RemainingAICount--
+		selected.RemainingAICount -= amount
+	} else if selected.RemainingCount > 0 {
+		selected.RemainingCount -= amount
 	}
 	return selected, nil
 }

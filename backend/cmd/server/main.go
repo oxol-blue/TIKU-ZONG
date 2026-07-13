@@ -4,12 +4,15 @@ import (
 	"log"
 
 	"github.com/joho/godotenv"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/ai"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/auth"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/billing"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/calls"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/config"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/database"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/httpapi"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/ocs"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/payment"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/questions"
 )
 
@@ -29,13 +32,19 @@ func main() {
 	var questionService *questions.Service
 	var billingService *billing.Service
 	var callLogger *calls.Store
+	var aiService *ai.Service
+	var ocsStore *ocs.Store
+	var paymentService *payment.Service
 	if db != nil {
 		authService = auth.NewService(auth.NewStore(db), cfg.JWTSecret)
 		questionService = questions.NewService(questions.NewStore(db))
 		billingService = billing.NewService(billing.NewStore(db))
 		callLogger = calls.NewStore(db)
+		aiService = ai.NewService(ai.NewStore(db, cfg.EncryptionSecret))
+		ocsStore = ocs.NewStore(db)
+		paymentService = payment.NewService(payment.NewStore(db, cfg.EncryptionSecret), cfg.PublicBaseURL)
 	}
-	router := httpapi.NewRouter(cfg, authService, questionService, billingService, callLogger)
+	router := httpapi.NewRouter(cfg, authService, questionService, billingService, callLogger, aiService, ocsStore, paymentService)
 
 	log.Printf("%s starting on %s", cfg.AppName, cfg.HTTPAddr)
 	if err := router.Run(cfg.HTTPAddr); err != nil {

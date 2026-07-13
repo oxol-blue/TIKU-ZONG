@@ -9,7 +9,7 @@ import (
 )
 
 func TestHealthz(t *testing.T) {
-	router := NewRouter(config.Config{AppEnv: "test", AppName: "test-api"}, nil, nil, nil, nil)
+	router := NewRouter(config.Config{AppEnv: "test", AppName: "test-api"}, nil, nil, nil, nil, nil, nil)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 
@@ -24,7 +24,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestOptionsRequest(t *testing.T) {
-	router := NewRouter(config.Config{AppEnv: "test"}, nil, nil, nil, nil)
+	router := NewRouter(config.Config{AppEnv: "test"}, nil, nil, nil, nil, nil, nil)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodOptions, "/api/v1/health", nil)
 
