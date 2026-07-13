@@ -44,6 +44,9 @@ func (s *Service) CreateSource(ctx context.Context, input SourceInput) (Source, 
 	if input.Priority <= 0 {
 		input.Priority = 100
 	}
+	if err := validateFieldDefinitions(input.Data); err != nil {
+		return Source{}, err
+	}
 	return s.store.CreateSource(ctx, input)
 }
 
@@ -101,11 +104,15 @@ func canonicalAnswer(value string) string {
 
 func (s *Service) call(parent context.Context, source Source, question, questionType string, options []string) (Result, error) {
 	started := time.Now()
-	values := make(map[string]string, len(source.Data))
+	values := make(map[string]any, len(source.Data))
 	for key, value := range source.Data {
-		values[key] = replacePlaceholders(value, question, questionType, strings.Join(options, "\n"))
+		resolved, err := resolveFieldValue(value, question, questionType, strings.Join(options, "\n"))
+		if err != nil {
+			return Result{}, err
+		}
+		values[key] = resolved
 	}
-	endpoint := source.URL
+	endpoint := replacePlaceholders(source.URL, question, questionType, strings.Join(options, "\n"))
 	var body io.Reader
 	method := strings.ToUpper(source.Method)
 	if method == http.MethodGet {
@@ -115,7 +122,11 @@ func (s *Service) call(parent context.Context, source Source, question, question
 		}
 		query := parsed.Query()
 		for key, value := range values {
-			query.Set(key, value)
+			encoded, encodeErr := encodeQueryValue(value)
+			if encodeErr != nil {
+				return Result{}, encodeErr
+			}
+			query.Set(key, encoded)
 		}
 		parsed.RawQuery = query.Encode()
 		endpoint = parsed.String()
@@ -186,6 +197,132 @@ func validateURL(value string) error {
 func replacePlaceholders(value, question, questionType, options string) string {
 	replacer := strings.NewReplacer("${title}", question, "${question}", question, "${type}", questionType, "${options}", options)
 	return replacer.Replace(value)
+}
+
+// resolveFieldValue implements the safe subset of OCS custom-field handlers.
+// It deliberately does not evaluate JavaScript. A field may be a plain JSON
+// value or a DSL object with value/template plus replace, map, split and join.
+func resolveFieldValue(value any, question, questionType, options string) (any, error) {
+	switch typed := value.(type) {
+	case string:
+		return replacePlaceholders(typed, question, questionType, options), nil
+	case map[string]any:
+		if _, exists := typed["handler"]; exists {
+			return nil, errors.New("OCS JavaScript field handlers are not supported; use the safe value/replace/map/split/join DSL")
+		}
+		raw, exists := typed["value"]
+		if !exists {
+			raw, exists = typed["template"]
+		}
+		if !exists {
+			return nil, errors.New("OCS custom field requires value or template")
+		}
+		resolved, err := resolveFieldValue(raw, question, questionType, options)
+		if err != nil {
+			return nil, err
+		}
+		text, isText := resolved.(string)
+		if replacements, found := typed["replace"]; found {
+			if !isText {
+				return nil, errors.New("OCS replace only supports string values")
+			}
+			text, err = applyReplacements(text, replacements)
+			if err != nil {
+				return nil, err
+			}
+			resolved, isText = text, true
+		}
+		if mapping, found := typed["map"]; found {
+			if !isText {
+				return nil, errors.New("OCS map only supports string values")
+			}
+			mapped, mapErr := applyMapping(text, mapping)
+			if mapErr != nil {
+				return nil, mapErr
+			}
+			resolved = mapped
+			text, isText = mapped.(string)
+		}
+		if delimiter, found := typed["split"]; found {
+			if !isText {
+				return nil, errors.New("OCS split only supports string values")
+			}
+			delimiterText, ok := delimiter.(string)
+			if !ok {
+				return nil, errors.New("OCS split must be a string")
+			}
+			resolved = strings.Split(text, delimiterText)
+		}
+		if join, found := typed["join"]; found {
+			delimiter, ok := join.(string)
+			if !ok {
+				return nil, errors.New("OCS join must be a string")
+			}
+			items, ok := resolved.([]string)
+			if !ok {
+				return nil, errors.New("OCS join requires a split result")
+			}
+			resolved = strings.Join(items, delimiter)
+		}
+		return resolved, nil
+	default:
+		return value, nil
+	}
+}
+
+func applyReplacements(value string, definition any) (string, error) {
+	items, ok := definition.([]any)
+	if !ok {
+		return "", errors.New("OCS replace must be an array")
+	}
+	for _, item := range items {
+		rule, ok := item.(map[string]any)
+		if !ok {
+			return "", errors.New("OCS replace items must be objects")
+		}
+		from, fromOK := rule["from"].(string)
+		to, toOK := rule["to"].(string)
+		if !fromOK || !toOK {
+			return "", errors.New("OCS replace items require string from and to")
+		}
+		value = strings.ReplaceAll(value, from, to)
+	}
+	return value, nil
+}
+
+func applyMapping(value string, definition any) (any, error) {
+	mapping, ok := definition.(map[string]any)
+	if !ok {
+		return nil, errors.New("OCS map must be an object")
+	}
+	if mapped, found := mapping[value]; found {
+		return mapped, nil
+	}
+	if fallback, found := mapping["default"]; found {
+		return fallback, nil
+	}
+	return value, nil
+}
+
+func encodeQueryValue(value any) (string, error) {
+	switch typed := value.(type) {
+	case string:
+		return typed, nil
+	case float64, bool, int, int64:
+		return fmt.Sprint(typed), nil
+	default:
+		encoded, err := json.Marshal(value)
+		return string(encoded), err
+	}
+}
+
+func validateFieldDefinitions(values map[string]any) error {
+	for _, value := range values {
+		if _, err := resolveFieldValue(value, "", "", ""); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func lookup(document any, path string) (any, bool) {

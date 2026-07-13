@@ -8,7 +8,7 @@ type SourceInput struct {
 	URL          string            `json:"url" binding:"required"`
 	Method       string            `json:"method"`
 	Headers      map[string]string `json:"headers"`
-	Data         map[string]string `json:"data"`
+	Data         map[string]any    `json:"data"`
 	SuccessPath  string            `json:"successPath"`
 	SuccessValue string            `json:"successValue"`
 	QuestionPath string            `json:"questionPath"`
@@ -24,7 +24,7 @@ type Source struct {
 	URL          string            `json:"url"`
 	Method       string            `json:"method"`
 	Headers      map[string]string `json:"headers"`
-	Data         map[string]string `json:"data"`
+	Data         map[string]any    `json:"data"`
 	SuccessPath  string            `json:"successPath"`
 	SuccessValue string            `json:"successValue"`
 	QuestionPath string            `json:"questionPath"`

@@ -85,14 +85,19 @@
         <el-tab-pane label="OCS 题库源" name="ocs">
           <el-form :model="ocsForm" label-position="top" class="form-grid">
             <el-form-item label="名称"><el-input v-model="ocsForm.name" /></el-form-item>
+            <el-form-item label="题库主页"><el-input v-model="ocsForm.homepage" placeholder="https://example.com" /></el-form-item>
             <el-form-item label="请求 URL"><el-input v-model="ocsForm.url" /></el-form-item>
             <el-form-item label="方法"><el-select v-model="ocsForm.method"><el-option label="GET" value="GET" /><el-option label="POST" value="POST" /></el-select></el-form-item>
             <el-form-item label="请求参数 JSON"><el-input v-model="ocsForm.dataText" type="textarea" :rows="2" placeholder='{"q":"${title}"}' /></el-form-item>
+            <el-form-item label="请求头 JSON"><el-input v-model="ocsForm.headersText" type="textarea" :rows="2" placeholder='{"Authorization":"Bearer token"}' /></el-form-item>
+            <el-form-item label="优先级（数值越小越优先）"><el-input-number v-model="ocsForm.priority" :min="1" /></el-form-item>
+            <el-form-item label="启用"><el-switch v-model="ocsForm.enabled" /></el-form-item>
             <el-form-item label="成功字段路径"><el-input v-model="ocsForm.successPath" placeholder="code" /></el-form-item>
             <el-form-item label="成功值"><el-input v-model="ocsForm.successValue" placeholder="1" /></el-form-item>
             <el-form-item label="题目字段路径"><el-input v-model="ocsForm.questionPath" placeholder="q" /></el-form-item>
             <el-form-item label="答案字段路径"><el-input v-model="ocsForm.answerPath" placeholder="data" /></el-form-item>
           </el-form>
+          <el-alert title="URL、请求头和字符串参数支持 ${title}、${question}、${type}、${options}。参数顶层字段可使用安全 DSL：value/template、replace、map、split、join；不执行 JavaScript handler。" type="info" :closable="false" show-icon />
           <el-button type="primary" :loading="saving" @click="saveOcs">保存题库源</el-button>
           <el-table :data="ocsSources" stripe class="table"><el-table-column prop="name" label="名称" /><el-table-column prop="url" label="URL" /><el-table-column prop="priority" label="优先级" /><el-table-column prop="enabled" label="启用" /></el-table>
         </el-tab-pane>
@@ -393,7 +398,7 @@ const adminTotp = ref(sessionStorage.getItem("koi-admin-totp") || "");
 const saving = ref(false);
 const ocsSources = ref<any[]>([]);
 const models = ref<any[]>([]);
-const ocsForm = reactive({ name: "", url: "", method: "GET", dataText: '{"q":"${title}"}', successPath: "code", successValue: "1", questionPath: "q", answerPath: "data" });
+const ocsForm = reactive({ name: "", homepage: "", url: "", method: "GET", dataText: '{"q":"${title}"}', headersText: "{}", priority: 100, enabled: true, successPath: "code", successValue: "1", questionPath: "q", answerPath: "data" });
 const providerForm = reactive({ name: "", baseUrl: "", apiKey: "" });
 const providerPreset = ref("");
 const providerPresets: Record<string, { name: string; baseUrl: string }> = {
@@ -534,7 +539,7 @@ const refreshAnnouncements = async () => { announcements.value = (await listAdmi
 const loadSettings = async () => { Object.assign(settingsForm, (await getAdminSettings()).data); };
 const saveTotp = () => sessionStorage.setItem("koi-admin-totp", adminTotp.value.trim());
 const applyProviderPreset = (value: string) => { const preset = providerPresets[value]; if (preset) Object.assign(providerForm, preset); };
-const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: true }); ElMessage.success("OCS 源已保存"); await refresh(); } finally { saving.value = false; } };
+const saveOcs = async () => { saving.value = true; try { await createOcsSource({ name: ocsForm.name, homepage: ocsForm.homepage, url: ocsForm.url, method: ocsForm.method, data: JSON.parse(ocsForm.dataText), headers: JSON.parse(ocsForm.headersText), priority: ocsForm.priority, successPath: ocsForm.successPath, successValue: ocsForm.successValue, questionPath: ocsForm.questionPath, answerPath: ocsForm.answerPath, enabled: ocsForm.enabled }); ElMessage.success("OCS 源已保存"); await refresh(); } catch { ElMessage.error("OCS 配置格式不正确，请检查 JSON 和安全字段 DSL"); } finally { saving.value = false; } };
 const saveProvider = async () => { const response = await createAiProvider(providerForm); modelForm.providerId = response.data.id; ElMessage.success(`服务商已创建，Provider ID：${response.data.id}`); await refresh(); };
 const saveModel = async () => { await createAiModel(modelForm); ElMessage.success("AI 模型已创建"); await refresh(); };
 const editModel = (model: typeof models.value[number]) => { Object.assign(modelEditForm, model); modelDialog.value = true; };

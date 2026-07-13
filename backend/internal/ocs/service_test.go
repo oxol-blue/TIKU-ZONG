@@ -27,6 +27,30 @@ func TestReplacePlaceholders(t *testing.T) {
 	}
 }
 
+func TestResolveSafeCustomField(t *testing.T) {
+	value, err := resolveFieldValue(map[string]any{
+		"value":   "【单选题】${title}",
+		"replace": []any{map[string]any{"from": "单选题", "to": ""}},
+	}, "1 + 2 = ?", "single", "")
+	if err != nil || value != "【】1 + 2 = ?" {
+		t.Fatalf("unexpected replace result: %#v, %v", value, err)
+	}
+	mapped, err := resolveFieldValue(map[string]any{"value": "${type}", "map": map[string]any{"single": float64(1), "default": float64(0)}}, "", "single", "")
+	if err != nil || mapped != float64(1) {
+		t.Fatalf("unexpected map result: %#v, %v", mapped, err)
+	}
+	split, err := resolveFieldValue(map[string]any{"value": "${options}", "split": "\n"}, "", "", "A. 一\nB. 二")
+	if err != nil || len(split.([]string)) != 2 {
+		t.Fatalf("unexpected split result: %#v, %v", split, err)
+	}
+}
+
+func TestRejectJavaScriptFieldHandler(t *testing.T) {
+	if _, err := resolveFieldValue(map[string]any{"handler": "return (env) => env.title"}, "题目", "", ""); err == nil {
+		t.Fatal("expected JavaScript handler to be rejected")
+	}
+}
+
 func TestCanonicalAnswer(t *testing.T) {
 	if got := canonicalAnswer("  Answer  Text "); got != "answer text" {
 		t.Fatalf("unexpected canonical answer: %q", got)

@@ -105,6 +105,10 @@ PATCH /api/v1/admin/ai/models/{id}/status
 
 模型可修改服务商、名称、优先级、超时与计费参数。调用链按优先级从小到大依次尝试，只有启用的模型会进入故障转移；列表不会返回服务商 API Key 明文。
 
+### OCS 第三方题库源
+
+`POST /api/v1/admin/ocs/sources` 接收名称、主页、URL、GET/POST 方法、请求头、`data`、优先级、启用状态及响应字段路径。`data` 的顶层字段可使用安全 DSL：`value/template`、`replace`、`map`、`split`、`join`；字符串值和 URL 支持 `${title}`、`${question}`、`${type}`、`${options}`。包含 OCS 原生 JavaScript `handler` 的字段会返回参数错误，服务端不执行任意脚本。
+
 ### 管理员操作日志
 
 ```text

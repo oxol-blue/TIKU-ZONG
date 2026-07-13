@@ -15,3 +15,17 @@
 ## 4. 合并规则
 
 `ANSWER_MERGE_RULE=priority` 时按源优先级故障转移；设为 `majority` 时调用全部可用源，对标准化答案投票，票数相同按优先级选择。生产环境应结合源稳定性和成本设置。
+
+## 5. 安全自定义字段 DSL
+
+第三方题库源的 `data` 顶层字段除可直接填写 JSON 值外，还可使用安全转换对象：`value` 或 `template` 作为输入，按需追加 `replace`、`map`、`split`、`join`。其中 `replace` 为 `{from,to}` 数组，`map` 按字符串键映射值并可使用 `default`，`split` 和 `join` 分别用于选项文本与多值参数转换。
+
+```json
+{
+  "question": { "value": "【单选题】${title}", "replace": [{"from":"单选题","to":""}] },
+  "questionType": { "template": "${type}", "map": {"single": 1, "multiple": 2, "default": 0} },
+  "options": { "value": "${options}", "split": "\n" }
+}
+```
+
+URL、请求头和字符串参数均支持 `${title}`、`${question}`、`${type}`、`${options}`。POST 会保留 JSON 数字和数组；GET 对非标量参数进行 JSON 编码。为满足系统安全要求，任何包含 OCS 原生 `handler` JavaScript 的字段都会被拒绝，不会执行或保存为可执行逻辑。
