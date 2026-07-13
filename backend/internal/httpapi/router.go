@@ -13,6 +13,7 @@ import (
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/ocs"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/payment"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/questions"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/security"
 )
 
 // NewRouter builds the public HTTP router for the API service.
@@ -22,6 +23,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	}
 
 	router := gin.New()
+	router.Use(security.NewMiddleware(security.Config{RateLimitPerMinute: cfg.APIRateLimitPerMinute, Blacklist: cfg.IPBlacklist, Whitelist: cfg.IPWhitelist}))
 	var paymentService *payment.Service
 	var feedbackService *feedback.Service
 	for _, service := range services {
