@@ -70,7 +70,7 @@ func (s *Store) RecordLoginFailure(ctx context.Context, id uint64, lockedUntil *
 }
 
 func (s *Store) RecordLoginSuccess(ctx context.Context, id uint64) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE users SET failed_login_count = 0, locked_until = NULL, last_login_at = ? WHERE id = ?`, time.Now(), id)
+	_, err := s.db.ExecContext(ctx, `UPDATE users SET failed_login_count = 0, locked_until = NULL, last_login_at = ? WHERE id = ?`, time.Now().UTC(), id)
 	return err
 }
 
@@ -94,10 +94,10 @@ func (s *Store) ConsumeRefreshToken(ctx context.Context, tokenHash string) (uint
 	if err != nil {
 		return 0, err
 	}
-	if time.Now().After(expiresAt) {
+	if time.Now().UTC().After(expiresAt) {
 		return 0, ErrNotFound
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?`, time.Now(), tokenHash); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ?`, time.Now().UTC(), tokenHash); err != nil {
 		return 0, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -131,4 +131,25 @@ func (s *Store) CreateAPIKey(ctx context.Context, userID uint64) (string, APIKey
 	}
 	view := APIKeyView{Prefix: prefix, Masked: maskAPIKey(plain), CreatedAt: time.Now()}
 	return plain, view, nil
+}
+
+func (s *Store) ResolveAPIKey(ctx context.Context, plain string) (User, uint64, error) {
+	var user User
+	var keyID uint64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT k.id, u.id, u.email, u.role, u.status, u.failed_login_count, u.locked_until, u.last_login_at, u.created_at
+		FROM user_api_keys k JOIN users u ON u.id = k.user_id
+		WHERE k.key_hash = ? AND k.revoked_at IS NULL`, hashToken(plain)).
+		Scan(&keyID, &user.ID, &user.Email, &user.Role, &user.Status, &user.FailedLoginCount, &user.LockedUntil, &user.LastLoginAt, &user.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return User{}, 0, ErrNotFound
+	}
+	if err != nil {
+		return User{}, 0, err
+	}
+	if user.Status != 1 {
+		return User{}, 0, ErrNotFound
+	}
+	_, _ = s.db.ExecContext(ctx, `UPDATE user_api_keys SET last_used_at = ? WHERE id = ?`, time.Now().UTC(), keyID)
+	return user, keyID, nil
 }

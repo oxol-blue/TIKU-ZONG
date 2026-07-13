@@ -23,7 +23,7 @@ type Claims struct {
 }
 
 func issueAccessToken(secret string, user User) (string, error) {
-	now := time.Now()
+	now := time.Now().UTC()
 	claims := Claims{
 		Role: user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{

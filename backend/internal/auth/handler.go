@@ -127,6 +127,50 @@ func (h *Handler) RequireAuth() gin.HandlerFunc {
 	}
 }
 
+func RequireRole(role string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		value, exists := c.Get("currentUser")
+		user, ok := value.(User)
+		if !exists || !ok || user.Role != role {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"code": "FORBIDDEN", "message": "permission denied"})
+			return
+		}
+		c.Next()
+	}
+}
+
+func RequireAdmin() gin.HandlerFunc { return RequireRole(RoleAdmin) }
+
+// RequireBearerOrAPIKey accepts a JWT Authorization header or the public key query parameter.
+func (h *Handler) RequireBearerOrAPIKey() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.service == nil {
+			serviceUnavailable(c)
+			return
+		}
+		if authorization := c.GetHeader("Authorization"); authorization != "" {
+			user, err := h.service.Authenticate(authorization)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": "UNAUTHORIZED", "message": "authentication required"})
+				return
+			}
+			c.Set("currentUser", user)
+			c.Set("authMethod", "jwt")
+			c.Next()
+			return
+		}
+		user, keyID, err := h.service.AuthenticateAPIKey(c.Request.Context(), c.Query("key"))
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": "INVALID_API_KEY", "message": "valid API key is required"})
+			return
+		}
+		c.Set("currentUser", user)
+		c.Set("apiKeyID", keyID)
+		c.Set("authMethod", "api_key")
+		c.Next()
+	}
+}
+
 func currentUser(c *gin.Context) (User, bool) {
 	value, exists := c.Get("currentUser")
 	if !exists {

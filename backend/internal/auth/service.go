@@ -68,7 +68,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (Session, e
 	if err := bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)); err != nil {
 		var lockedUntil *time.Time
 		if user.FailedLoginCount+1 >= 5 {
-			until := time.Now().Add(15 * time.Minute)
+			until := time.Now().UTC().Add(15 * time.Minute)
 			lockedUntil = &until
 		}
 		_ = s.store.RecordLoginFailure(ctx, user.ID, lockedUntil)
@@ -124,6 +124,13 @@ func (s *Service) CreateAPIKey(ctx context.Context, userID uint64) (string, APIK
 	return s.store.CreateAPIKey(ctx, userID)
 }
 
+func (s *Service) AuthenticateAPIKey(ctx context.Context, plain string) (User, uint64, error) {
+	if strings.TrimSpace(plain) == "" {
+		return User{}, 0, ErrInvalidCredentials
+	}
+	return s.store.ResolveAPIKey(ctx, plain)
+}
+
 func (s *Service) issueSession(ctx context.Context, user User) (Session, error) {
 	if s.secret == "" {
 		return Session{}, fmt.Errorf("jwt secret is not configured")
@@ -136,7 +143,7 @@ func (s *Service) issueSession(ctx context.Context, user User) (Session, error) 
 	if err != nil {
 		return Session{}, err
 	}
-	if err := s.store.SaveRefreshToken(ctx, user.ID, refreshHash, time.Now().Add(refreshTokenTTL)); err != nil {
+	if err := s.store.SaveRefreshToken(ctx, user.ID, refreshHash, time.Now().UTC().Add(refreshTokenTTL)); err != nil {
 		return Session{}, err
 	}
 	return Session{User: user, AccessToken: accessToken, RefreshToken: refreshToken, ExpiresIn: int64(accessTokenTTL.Seconds())}, nil
