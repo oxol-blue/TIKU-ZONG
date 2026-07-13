@@ -26,12 +26,15 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	router.Use(security.NewMiddleware(security.Config{RateLimitPerMinute: cfg.APIRateLimitPerMinute, Blacklist: cfg.IPBlacklist, Whitelist: cfg.IPWhitelist}))
 	var paymentService *payment.Service
 	var feedbackService *feedback.Service
+	var ocsService *ocs.Service
 	for _, service := range services {
 		switch value := service.(type) {
 		case *payment.Service:
 			paymentService = value
 		case *feedback.Service:
 			feedbackService = value
+		case *ocs.Service:
+			ocsService = value
 		}
 	}
 	_ = router.SetTrustedProxies(nil)
@@ -66,7 +69,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.GET("/api-key", authHandler.GetAPIKey)
 	protected.POST("/api-key", authHandler.CreateAPIKey)
 
-	questionHandler := questions.NewHandler(questionService, callLogger, billingService, aiService)
+	questionHandler := questions.NewHandler(questionService, callLogger, billingService, aiService, ocsService)
 	aiHandler := ai.NewHandler(aiService)
 	ocsHandler := ocs.NewHandler(cfg.PublicBaseURL, ocsStore)
 	billingHandler := billing.NewHandler(billingService)
@@ -85,6 +88,8 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.POST("/admin/ai/providers", auth.RequireAdmin(), aiHandler.CreateProvider)
 	protected.POST("/admin/ai/models", auth.RequireAdmin(), aiHandler.CreateModel)
 	protected.GET("/admin/ai/models", auth.RequireAdmin(), aiHandler.ListModels)
+	protected.POST("/admin/ocs/sources", auth.RequireAdmin(), ocsHandler.CreateSource)
+	protected.GET("/admin/ocs/sources", auth.RequireAdmin(), ocsHandler.ListSources)
 	ocsRoutes := router.Group("/api/ocs")
 	ocsRoutes.Use(authHandler.RequireBearerOrAPIKey())
 	ocsRoutes.GET("/config", ocsHandler.Config)

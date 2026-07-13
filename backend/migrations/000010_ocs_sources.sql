@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS ocs_sources (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(128) NOT NULL,
+    homepage VARCHAR(512) NOT NULL DEFAULT '',
+    url VARCHAR(1024) NOT NULL,
+    method VARCHAR(8) NOT NULL DEFAULT 'GET',
+    headers_json TEXT NOT NULL,
+    data_json TEXT NOT NULL,
+    success_path VARCHAR(128) NOT NULL DEFAULT '',
+    success_value VARCHAR(128) NOT NULL DEFAULT '',
+    question_path VARCHAR(128) NOT NULL DEFAULT '',
+    answer_path VARCHAR(128) NOT NULL DEFAULT '',
+    priority INT NOT NULL DEFAULT 100,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    KEY idx_ocs_sources_priority (enabled, priority, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

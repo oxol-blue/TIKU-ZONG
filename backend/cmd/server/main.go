@@ -36,6 +36,7 @@ func main() {
 	var callLogger *calls.Store
 	var aiService *ai.Service
 	var ocsStore *ocs.Store
+	var ocsService *ocs.Service
 	var paymentService *payment.Service
 	var feedbackService *feedback.Service
 	captchaStore := captcha.NewStore()
@@ -46,10 +47,11 @@ func main() {
 		callLogger = calls.NewStore(db)
 		aiService = ai.NewService(ai.NewStore(db, cfg.EncryptionSecret))
 		ocsStore = ocs.NewStore(db)
+		ocsService = ocs.NewService(ocsStore)
 		paymentService = payment.NewService(payment.NewStore(db, cfg.EncryptionSecret), cfg.PublicBaseURL)
 		feedbackService = feedback.NewService(feedback.NewStore(db))
 	}
-	router := httpapi.NewRouter(cfg, authService, questionService, billingService, callLogger, aiService, ocsStore, paymentService, feedbackService)
+	router := httpapi.NewRouter(cfg, authService, questionService, billingService, callLogger, aiService, ocsStore, paymentService, feedbackService, ocsService)
 
 	log.Printf("%s starting on %s", cfg.AppName, cfg.HTTPAddr)
 	if err := router.Run(cfg.HTTPAddr); err != nil {

@@ -18,6 +18,38 @@ func NewHandler(baseURL string, store *Store) *Handler {
 	return &Handler{baseURL: strings.TrimRight(baseURL, "/"), store: store}
 }
 
+func (h *Handler) CreateSource(c *gin.Context) {
+	var input SourceInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid OCS source payload"})
+		return
+	}
+	if h.store == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "SERVICE_UNAVAILABLE", "message": "OCS service is unavailable"})
+		return
+	}
+	service := NewService(h.store)
+	item, err := service.CreateSource(c.Request.Context(), input)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "OCS_SOURCE_CREATE_FAILED", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "created", "data": item})
+}
+
+func (h *Handler) ListSources(c *gin.Context) {
+	if h.store == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "SERVICE_UNAVAILABLE", "message": "OCS service is unavailable"})
+		return
+	}
+	items, err := h.store.ListSources(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load OCS sources"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
 func (h *Handler) Config(c *gin.Context) {
 	user, ok := currentUser(c)
 	if !ok {

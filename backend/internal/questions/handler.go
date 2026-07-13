@@ -12,6 +12,7 @@ import (
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/auth"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/billing"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/calls"
+	"github.com/oxol-blue/TIKU-ZONG/backend/internal/ocs"
 )
 
 type Handler struct {
@@ -19,10 +20,15 @@ type Handler struct {
 	logger  *calls.Store
 	billing *billing.Service
 	ai      *ai.Service
+	ocs     *ocs.Service
 }
 
-func NewHandler(service *Service, logger *calls.Store, billingService *billing.Service, aiService *ai.Service) *Handler {
-	return &Handler{service: service, logger: logger, billing: billingService, ai: aiService}
+func NewHandler(service *Service, logger *calls.Store, billingService *billing.Service, aiService *ai.Service, ocsServices ...*ocs.Service) *Handler {
+	var ocsService *ocs.Service
+	if len(ocsServices) > 0 {
+		ocsService = ocsServices[0]
+	}
+	return &Handler{service: service, logger: logger, billing: billingService, ai: aiService, ocs: ocsService}
 }
 
 func (h *Handler) Search(c *gin.Context) {
@@ -50,9 +56,28 @@ func (h *Handler) Search(c *gin.Context) {
 	}
 	question, elapsed, err := h.service.Search(c.Request.Context(), query)
 	if errors.Is(err, ErrNotFound) {
+		questionType := c.Query("type")
+		options := splitOptions(c.Query("options"))
+		if h.ocs != nil {
+			if external, externalErr := h.ocs.Search(c.Request.Context(), query, questionType, options); externalErr == nil {
+				if h.billing != nil {
+					packageID, _ := strconv.ParseUint(c.Query("package_id"), 10, 64)
+					if _, consumeErr := h.billing.Consume(c.Request.Context(), current.ID, packageID, billing.UsageQuestions, requestID, "/api/v1/search", 1); consumeErr != nil {
+						h.log(c, requestID, current.ID, keyID, query, false, http.StatusPaymentRequired, "NO_QUOTA", started)
+						c.JSON(http.StatusPaymentRequired, gin.H{"code": "NO_QUOTA", "message": "an available package is required"})
+						return
+					}
+				}
+				h.log(c, requestID, current.ID, keyID, query, true, http.StatusOK, "", started)
+				if isOCS == true {
+					c.JSON(http.StatusOK, gin.H{"code": 1, "q": external.Question, "data": external.Answer})
+				} else {
+					c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{"request_id": requestID, "question": external.Question, "answer": external.Answer, "type": questionType, "is_ai": false, "search_time": external.Elapsed.Microseconds(), "sources": []string{external.Source}}})
+				}
+				return
+			}
+		}
 		if h.ai != nil {
-			questionType := c.Query("type")
-			options := strings.Split(strings.TrimSpace(c.Query("options")), "\n")
 			aiAnswer, aiErr := h.ai.Solve(c.Request.Context(), query, questionType, options)
 			if aiErr == nil {
 				if h.billing != nil {
@@ -108,6 +133,14 @@ func (h *Handler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": gin.H{
 		"request_id": requestID, "question": question.Question, "answer": answer, "type": question.Type, "is_ai": false, "search_time": elapsed.Microseconds(), "sources": []string{question.Source},
 	}})
+}
+
+func splitOptions(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return strings.Split(value, "\n")
 }
 
 func (h *Handler) OCSSearch(c *gin.Context) {
