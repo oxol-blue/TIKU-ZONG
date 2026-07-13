@@ -30,6 +30,10 @@ func (s *Service) ListInstances(ctx context.Context, userID uint64) ([]PackageIn
 	return s.store.ListInstances(ctx, userID)
 }
 
+func (s *Service) ListAvailablePackages(ctx context.Context) ([]Package, error) {
+	return s.store.ListAvailablePackages(ctx)
+}
+
 func (s *Service) Consume(ctx context.Context, userID, packageID uint64, kind, requestID, endpoint string, amount int) (PackageInstance, error) {
 	return s.store.Consume(ctx, userID, packageID, kind, requestID, endpoint, amount)
 }

@@ -54,6 +54,19 @@ func (h *Handler) MyPackages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
 }
 
+func (h *Handler) AvailablePackages(c *gin.Context) {
+	if h.service == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"code": "SERVICE_UNAVAILABLE", "message": "billing service is unavailable"})
+		return
+	}
+	items, err := h.service.ListAvailablePackages(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load packages"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
 func currentUser(c *gin.Context) (auth.User, bool) {
 	value, exists := c.Get("currentUser")
 	if !exists {

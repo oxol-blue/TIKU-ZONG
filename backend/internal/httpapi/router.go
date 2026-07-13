@@ -66,6 +66,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	questionAuth.GET("/search", questionHandler.Search)
 	protected.POST("/admin/questions/import", auth.RequireAdmin(), questionHandler.Import)
 	protected.GET("/packages/my", billingHandler.MyPackages)
+	protected.GET("/packages", billingHandler.AvailablePackages)
 	protected.POST("/admin/packages", auth.RequireAdmin(), billingHandler.CreatePackage)
 	protected.POST("/admin/packages/:id/grant/:userId", auth.RequireAdmin(), billingHandler.GrantPackage)
 	protected.GET("/admin/calls", auth.RequireAdmin(), callHandler.Recent)

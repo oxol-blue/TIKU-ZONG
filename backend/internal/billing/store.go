@@ -37,6 +37,23 @@ func (s *Store) GetPackage(ctx context.Context, id uint64) (Package, error) {
 	return item, err
 }
 
+func (s *Store) ListAvailablePackages(ctx context.Context) ([]Package, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, package_type, duration_seconds, total_count, ai_count, price_cents, status, limit_count, created_at FROM packages WHERE status = 1 ORDER BY price_cents ASC, id ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]Package, 0)
+	for rows.Next() {
+		var item Package
+		if err := rows.Scan(&item.ID, &item.Name, &item.Type, &item.DurationSeconds, &item.TotalCount, &item.AICount, &item.PriceCents, &item.Status, &item.LimitCount, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (s *Store) GrantPackage(ctx context.Context, userID, packageID uint64) (PackageInstance, error) {
 	item, err := s.GetPackage(ctx, packageID)
 	if err != nil {

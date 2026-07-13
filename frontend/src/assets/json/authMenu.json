@@ -529,6 +529,66 @@
       "isTag": "0",
       "isAffix": "0",
       "redirect": ""
+    },
+    {
+      "menuId": 10,
+      "menuName": "题库中心",
+      "parentId": 0,
+      "menuType": "1",
+      "path": "/tiku",
+      "name": "tikuPage",
+      "component": "",
+      "icon": "koi-book-open",
+      "isVisible": "1",
+      "isKeepAlive": "1",
+      "isTag": "0",
+      "isAffix": "0",
+      "redirect": "/tiku/search"
+    },
+    {
+      "menuId": 101,
+      "menuName": "在线搜题",
+      "parentId": 10,
+      "menuType": "2",
+      "path": "/tiku/search",
+      "name": "tikuSearchPage",
+      "component": "tiku/search/index",
+      "icon": "koi-global-search",
+      "isVisible": "1",
+      "isKeepAlive": "1",
+      "isTag": "1",
+      "isAffix": "0",
+      "redirect": ""
+    },
+    {
+      "menuId": 102,
+      "menuName": "套餐中心",
+      "parentId": 10,
+      "menuType": "2",
+      "path": "/tiku/packages",
+      "name": "tikuPackagesPage",
+      "component": "tiku/packages/index",
+      "icon": "koi-money-time",
+      "isVisible": "1",
+      "isKeepAlive": "1",
+      "isTag": "1",
+      "isAffix": "0",
+      "redirect": ""
+    },
+    {
+      "menuId": 103,
+      "menuName": "API 与 OCS",
+      "parentId": 10,
+      "menuType": "2",
+      "path": "/tiku/account",
+      "name": "tikuAccountPage",
+      "component": "tiku/account/index",
+      "icon": "koi-key-square",
+      "isVisible": "1",
+      "isKeepAlive": "1",
+      "isTag": "1",
+      "isAffix": "0",
+      "redirect": ""
     }
   ]
 }
