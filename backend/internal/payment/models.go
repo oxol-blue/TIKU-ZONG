@@ -39,8 +39,11 @@ type Order struct {
 	PackageID         uint64     `json:"packageId"`
 	PackageName       string     `json:"packageName"`
 	Provider          string     `json:"provider"`
+	CouponID          uint64     `json:"-"`
+	CouponCode        string     `json:"couponCode,omitempty"`
 	AmountCents       int        `json:"amountCents"`
 	PayableCents      int        `json:"payableCents"`
+	DiscountCents     int        `json:"discountCents"`
 	RefundedCents     int        `json:"refundedCents"`
 	Status            string     `json:"status"`
 	ProviderTradeNo   string     `json:"providerTradeNo,omitempty"`
@@ -52,8 +55,9 @@ type Order struct {
 }
 
 type CreateOrderInput struct {
-	PackageID uint64 `json:"packageId" binding:"required"`
-	Provider  string `json:"provider"`
+	PackageID  uint64 `json:"packageId" binding:"required"`
+	Provider   string `json:"provider"`
+	CouponCode string `json:"couponCode"`
 }
 
 type RefundInput struct {

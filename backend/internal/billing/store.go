@@ -15,8 +15,8 @@ type Store struct{ db *sql.DB }
 func NewStore(db *sql.DB) *Store { return &Store{db: db} }
 
 func (s *Store) CreatePackage(ctx context.Context, input CreatePackageInput) (Package, error) {
-	result, err := s.db.ExecContext(ctx, `INSERT INTO packages (name, package_type, duration_seconds, total_count, ai_count, price_cents, limit_count) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		input.Name, input.Type, input.DurationSeconds, input.TotalCount, input.AICount, input.PriceCents, input.LimitCount)
+	result, err := s.db.ExecContext(ctx, `INSERT INTO packages (name, package_type, duration_seconds, total_count, ai_count, price_cents, limit_count, is_trial, is_free) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		input.Name, input.Type, input.DurationSeconds, input.TotalCount, input.AICount, input.PriceCents, input.LimitCount, input.IsTrial, input.IsFree)
 	if err != nil {
 		return Package{}, fmt.Errorf("create package: %w", err)
 	}
@@ -29,8 +29,8 @@ func (s *Store) CreatePackage(ctx context.Context, input CreatePackageInput) (Pa
 
 func (s *Store) GetPackage(ctx context.Context, id uint64) (Package, error) {
 	var item Package
-	err := s.db.QueryRowContext(ctx, `SELECT id, name, package_type, duration_seconds, total_count, ai_count, price_cents, status, limit_count, created_at FROM packages WHERE id = ?`, id).
-		Scan(&item.ID, &item.Name, &item.Type, &item.DurationSeconds, &item.TotalCount, &item.AICount, &item.PriceCents, &item.Status, &item.LimitCount, &item.CreatedAt)
+	err := s.db.QueryRowContext(ctx, `SELECT id, name, package_type, duration_seconds, total_count, ai_count, price_cents, status, limit_count, is_trial, is_free, created_at FROM packages WHERE id = ?`, id).
+		Scan(&item.ID, &item.Name, &item.Type, &item.DurationSeconds, &item.TotalCount, &item.AICount, &item.PriceCents, &item.Status, &item.LimitCount, &item.IsTrial, &item.IsFree, &item.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Package{}, ErrNoQuota
 	}
@@ -38,7 +38,7 @@ func (s *Store) GetPackage(ctx context.Context, id uint64) (Package, error) {
 }
 
 func (s *Store) ListAvailablePackages(ctx context.Context) ([]Package, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name, package_type, duration_seconds, total_count, ai_count, price_cents, status, limit_count, created_at FROM packages WHERE status = 1 ORDER BY price_cents ASC, id ASC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name, package_type, duration_seconds, total_count, ai_count, price_cents, status, limit_count, is_trial, is_free, created_at FROM packages WHERE status = 1 ORDER BY price_cents ASC, id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,43 @@ func (s *Store) ListAvailablePackages(ctx context.Context) ([]Package, error) {
 	items := make([]Package, 0)
 	for rows.Next() {
 		var item Package
-		if err := rows.Scan(&item.ID, &item.Name, &item.Type, &item.DurationSeconds, &item.TotalCount, &item.AICount, &item.PriceCents, &item.Status, &item.LimitCount, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Name, &item.Type, &item.DurationSeconds, &item.TotalCount, &item.AICount, &item.PriceCents, &item.Status, &item.LimitCount, &item.IsTrial, &item.IsFree, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (s *Store) CreateCoupon(ctx context.Context, input CreateCouponInput) (Coupon, error) {
+	result, err := s.db.ExecContext(ctx, `INSERT INTO coupons (code, discount_type, discount_value, total_limit, expires_at) VALUES (?, ?, ?, ?, ?)`, input.Code, input.DiscountType, input.DiscountValue, input.TotalLimit, input.ExpiresAt)
+	if err != nil {
+		return Coupon{}, fmt.Errorf("create coupon: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return Coupon{}, err
+	}
+	return s.GetCoupon(ctx, uint64(id))
+}
+
+func (s *Store) GetCoupon(ctx context.Context, id uint64) (Coupon, error) {
+	var item Coupon
+	err := s.db.QueryRowContext(ctx, `SELECT id, code, discount_type, discount_value, total_limit, used_count, reserved_count, expires_at, status FROM coupons WHERE id = ?`, id).
+		Scan(&item.ID, &item.Code, &item.DiscountType, &item.DiscountValue, &item.TotalLimit, &item.UsedCount, &item.ReservedCount, &item.ExpiresAt, &item.Status)
+	return item, err
+}
+
+func (s *Store) ListCoupons(ctx context.Context) ([]Coupon, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, code, discount_type, discount_value, total_limit, used_count, reserved_count, expires_at, status FROM coupons ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]Coupon, 0)
+	for rows.Next() {
+		var item Coupon
+		if err := rows.Scan(&item.ID, &item.Code, &item.DiscountType, &item.DiscountValue, &item.TotalLimit, &item.UsedCount, &item.ReservedCount, &item.ExpiresAt, &item.Status); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

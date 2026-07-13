@@ -26,6 +26,29 @@ func (h *Handler) CreatePackage(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "created", "data": item})
 }
 
+func (h *Handler) CreateCoupon(c *gin.Context) {
+	var request CreateCouponInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_REQUEST", "message": "invalid coupon payload"})
+		return
+	}
+	item, err := h.service.CreateCoupon(c.Request.Context(), request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_COUPON", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "created", "data": item})
+}
+
+func (h *Handler) ListCoupons(c *gin.Context) {
+	items, err := h.service.ListCoupons(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": "failed to load coupons"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
+}
+
 func (h *Handler) GrantPackage(c *gin.Context) {
 	packageID, err1 := strconv.ParseUint(c.Param("id"), 10, 64)
 	userID, err2 := strconv.ParseUint(c.Param("userId"), 10, 64)

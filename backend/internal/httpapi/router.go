@@ -68,6 +68,8 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	protected.GET("/packages/my", billingHandler.MyPackages)
 	protected.GET("/packages", billingHandler.AvailablePackages)
 	protected.POST("/admin/packages", auth.RequireAdmin(), billingHandler.CreatePackage)
+	protected.POST("/admin/coupons", auth.RequireAdmin(), billingHandler.CreateCoupon)
+	protected.GET("/admin/coupons", auth.RequireAdmin(), billingHandler.ListCoupons)
 	protected.POST("/admin/packages/:id/grant/:userId", auth.RequireAdmin(), billingHandler.GrantPackage)
 	protected.GET("/admin/calls", auth.RequireAdmin(), callHandler.Recent)
 	protected.POST("/admin/ai/providers", auth.RequireAdmin(), aiHandler.CreateProvider)

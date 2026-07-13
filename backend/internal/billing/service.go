@@ -3,6 +3,7 @@ package billing
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 type Service struct{ store *Store }
@@ -19,7 +20,25 @@ func (s *Service) CreatePackage(ctx context.Context, input CreatePackageInput) (
 	if input.Type != PackageTime && input.TotalCount <= 0 {
 		return Package{}, errors.New("totalCount is required for count packages")
 	}
+	if (input.IsTrial != 0 && input.IsTrial != 1) || (input.IsFree != 0 && input.IsFree != 1) {
+		return Package{}, errors.New("isTrial and isFree must be 0 or 1")
+	}
 	return s.store.CreatePackage(ctx, input)
+}
+
+func (s *Service) CreateCoupon(ctx context.Context, input CreateCouponInput) (Coupon, error) {
+	input.Code = strings.ToUpper(strings.TrimSpace(input.Code))
+	if input.Code == "" || (input.DiscountType != "fixed" && input.DiscountType != "percent") || input.DiscountValue <= 0 || input.TotalLimit < 0 {
+		return Coupon{}, errors.New("invalid coupon")
+	}
+	if input.DiscountType == "percent" && input.DiscountValue > 100 {
+		return Coupon{}, errors.New("percent coupon cannot exceed 100")
+	}
+	return s.store.CreateCoupon(ctx, input)
+}
+
+func (s *Service) ListCoupons(ctx context.Context) ([]Coupon, error) {
+	return s.store.ListCoupons(ctx)
 }
 
 func (s *Service) GrantPackage(ctx context.Context, userID, packageID uint64) (PackageInstance, error) {

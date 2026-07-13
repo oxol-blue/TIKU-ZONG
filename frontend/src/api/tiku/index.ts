@@ -19,6 +19,8 @@ export interface PackageItem {
   priceCents: number;
   status: number;
   limitCount: number;
+  isTrial: number;
+  isFree: number;
   createdAt: string;
 }
 
@@ -64,7 +66,7 @@ export const listPackages = () => koi.get<{ code: number; message: string; data:
 export const listMyPackages = () =>
   koi.get<{ code: number; message: string; data: PackageInstance[] }>("/api/v1/packages/my");
 
-export const createOrder = (data: { packageId: number; provider?: string }) =>
+export const createOrder = (data: { packageId: number; provider?: string; couponCode?: string }) =>
   koi.post<{ code: number; message: string; data: { order: OrderItem; paymentUrl: string } }>("/api/v1/orders", data);
 
 export const listMyOrders = () => koi.get<{ code: number; message: string; data: OrderItem[] }>("/api/v1/orders/my");

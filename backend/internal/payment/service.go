@@ -30,9 +30,16 @@ func (s *Service) CreateOrder(ctx context.Context, userID uint64, input CreateOr
 	if err != nil {
 		return Order{}, "", err
 	}
-	order, err := s.store.CreateOrder(ctx, userID, input.PackageID, provider, orderNo, time.Now().UTC().Add(30*time.Minute))
+	order, err := s.store.CreateOrder(ctx, userID, input.PackageID, provider, input.CouponCode, orderNo, time.Now().UTC().Add(30*time.Minute))
 	if err != nil {
 		return Order{}, "", err
+	}
+	if order.PayableCents == 0 {
+		paid, err := s.store.MarkPaidAndGrant(ctx, Notification{OrderNo: order.OrderNo, Status: "SUCCESS", AmountCents: 0})
+		if err != nil {
+			return Order{}, "", err
+		}
+		return paid, "", nil
 	}
 	gateway, err := s.store.GetGateway(ctx, provider)
 	if err != nil {

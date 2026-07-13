@@ -20,6 +20,8 @@ type Package struct {
 	PriceCents      int       `json:"priceCents"`
 	Status          int       `json:"status"`
 	LimitCount      int       `json:"limitCount"`
+	IsTrial         int       `json:"isTrial"`
+	IsFree          int       `json:"isFree"`
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
@@ -31,6 +33,28 @@ type CreatePackageInput struct {
 	AICount         int    `json:"aiCount"`
 	PriceCents      int    `json:"priceCents"`
 	LimitCount      int    `json:"limitCount"`
+	IsTrial         int    `json:"isTrial"`
+	IsFree          int    `json:"isFree"`
+}
+
+type Coupon struct {
+	ID            uint64     `json:"id"`
+	Code          string     `json:"code"`
+	DiscountType  string     `json:"discountType"`
+	DiscountValue int        `json:"discountValue"`
+	TotalLimit    int        `json:"totalLimit"`
+	UsedCount     int        `json:"usedCount"`
+	ReservedCount int        `json:"reservedCount"`
+	ExpiresAt     *time.Time `json:"expiresAt,omitempty"`
+	Status        int        `json:"status"`
+}
+
+type CreateCouponInput struct {
+	Code          string     `json:"code" binding:"required"`
+	DiscountType  string     `json:"discountType" binding:"required"`
+	DiscountValue int        `json:"discountValue" binding:"required"`
+	TotalLimit    int        `json:"totalLimit"`
+	ExpiresAt     *time.Time `json:"expiresAt"`
 }
 
 type PackageInstance struct {
