@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/oxol-blue/TIKU-ZONG/backend/internal/ai"
@@ -52,9 +54,27 @@ func main() {
 		feedbackService = feedback.NewService(feedback.NewStore(db))
 	}
 	router := httpapi.NewRouter(cfg, authService, questionService, billingService, callLogger, aiService, ocsStore, paymentService, feedbackService, ocsService)
+	if paymentService != nil {
+		go runPaymentMaintenance(paymentService)
+	}
 
 	log.Printf("%s starting on %s", cfg.AppName, cfg.HTTPAddr)
 	if err := router.Run(cfg.HTTPAddr); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func runPaymentMaintenance(service *payment.Service) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		closed, err := service.Store().CloseExpired(context.Background(), time.Now().UTC())
+		if err != nil {
+			log.Printf("payment maintenance failed: %v", err)
+			continue
+		}
+		if closed > 0 {
+			log.Printf("payment maintenance closed %d expired order(s)", closed)
+		}
 	}
 }
