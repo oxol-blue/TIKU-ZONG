@@ -50,6 +50,9 @@ func TestMetricsEndpoint(t *testing.T) {
 	if got := recorder.Header().Get("Content-Type"); got != "text/plain; version=0.0.4" {
 		t.Fatalf("unexpected metrics content type %q", got)
 	}
+	if got := recorder.Body.String(); !strings.Contains(got, "tiku_database_ready 0") {
+		t.Fatalf("expected database readiness metric, got %q", got)
+	}
 }
 
 func TestReadinessWithoutDatabase(t *testing.T) {

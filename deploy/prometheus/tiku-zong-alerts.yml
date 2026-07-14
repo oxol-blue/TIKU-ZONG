@@ -1,0 +1,38 @@
+groups:
+  - name: tiku-zong
+    rules:
+      - alert: TikuZongAPIUnreachable
+        expr: up{job="tiku-zong-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TIKU-ZONG API 无法抓取"
+          description: "Prometheus 已连续 1 分钟无法从 {{ $labels.instance }} 抓取 /metrics。"
+
+      - alert: TikuZongDatabaseUnavailable
+        expr: tiku_database_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TIKU-ZONG 数据库未就绪"
+          description: "API 仍可响应但 MySQL 健康检查连续 2 分钟失败。"
+
+      - alert: TikuZongAIQueueSaturated
+        expr: tiku_ai_queue_capacity > 0 and (tiku_ai_queue_depth / tiku_ai_queue_capacity) >= 0.8
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TIKU-ZONG AI 队列接近满载"
+          description: "AI 队列已连续 3 分钟达到容量的 80% 或以上。"
+
+      - alert: TikuZongAIWorkersUnavailable
+        expr: tiku_ai_queue_workers < 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TIKU-ZONG AI Worker 不可用"
+          description: "AI 队列 Worker 数为 0，AI 兜底无法处理请求。"

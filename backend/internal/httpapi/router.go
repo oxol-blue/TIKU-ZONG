@@ -90,8 +90,16 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 	})
 	router.GET("/metrics", func(c *gin.Context) {
 		stats := aiService.QueueStats()
+		databaseReady := 0
+		if databaseService != nil {
+			ctx, cancel := context.WithTimeout(c.Request.Context(), 500*time.Millisecond)
+			if databaseService.PingContext(ctx) == nil {
+				databaseReady = 1
+			}
+			cancel()
+		}
 		c.Header("Content-Type", "text/plain; version=0.0.4")
-		c.String(http.StatusOK, "tiku_http_requests_total %d\ntiku_ai_queue_depth %d\ntiku_ai_queue_capacity %d\ntiku_ai_queue_workers %d\n", atomic.LoadUint64(&requestCount), stats.Depth, stats.Capacity, stats.Workers)
+		c.String(http.StatusOK, "tiku_http_requests_total %d\ntiku_ai_queue_depth %d\ntiku_ai_queue_capacity %d\ntiku_ai_queue_workers %d\ntiku_database_ready %d\n", atomic.LoadUint64(&requestCount), stats.Depth, stats.Capacity, stats.Workers, databaseReady)
 	})
 
 	api := router.Group("/api/v1")
