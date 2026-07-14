@@ -191,6 +191,7 @@ func NewRouter(cfg config.Config, authService *auth.Service, questionService *qu
 		paymentHandler := payment.NewHandler(paymentService)
 		protected.POST("/orders", paymentHandler.CreateOrder)
 		protected.GET("/orders/my", paymentHandler.MyOrders)
+		protected.GET("/orders/:orderNo", paymentHandler.MyOrder)
 		protected.GET("/admin/orders", adminOnly, paymentHandler.AdminOrders)
 		protected.POST("/admin/payment/gateways", adminOnly, paymentHandler.ConfigureGateway)
 		protected.GET("/admin/payment/gateways", adminOnly, paymentHandler.Gateway)

@@ -67,6 +67,8 @@ GET /api/ocs/search?key=API_KEY&q=题目
 
 `GET /api/v1/calls/my`（登录用户）返回当前用户最近调用记录，不返回题目明文，仅返回题目哈希、接口、来源、耗时和状态。
 
+`GET /api/v1/orders/{orderNo}`（登录用户）仅返回当前 JWT 用户自己的订单详情。订单不存在或不属于当前用户时均返回 `404 ORDER_NOT_FOUND`，不向其他用户泄露订单状态、金额、套餐或支付渠道信息。支付收银台回跳地址为 `/payment/result?order_no={orderNo}`，前端据此查询订单并在待支付时短时轮询异步通知结果。
+
 `GET /api/v1/search-history/my`（登录用户）返回当前用户成功搜索的题目、文字答案、题型、来源、AI 标记、耗时和时间。支持 `page`、`pageSize` 分页以及 `isAi=true|false` 筛选；历史仅按当前 JWT 用户 ID 查询，API 调用日志中的失败请求不会写入该记录。
 
 `GET /api/v1/feedback/my`（登录用户）返回当前用户提交的反馈记录，仅返回题目哈希，不返回题目原文。

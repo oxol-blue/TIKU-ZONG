@@ -19,6 +19,19 @@ export const staticRouter: RouteRecordRaw[] = [
     redirect: HOME_URL,
     meta: { title: "题库调用系统", isVisible: "0" },
     children: []
+  },
+  {
+    path: "/payment",
+    component: Layout,
+    meta: { title: "支付结果", isVisible: "0" },
+    children: [
+      {
+        path: "result",
+        name: "paymentResult",
+        component: () => import("@/views/tiku/payment-result/index.vue"),
+        meta: { title: "支付结果", isVisible: "0" }
+      }
+    ]
   }
 ];
 

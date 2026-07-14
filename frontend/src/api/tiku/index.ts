@@ -111,6 +111,9 @@ export const createOrder = (data: { packageId: number; provider?: string; coupon
 
 export const listMyOrders = () => koi.get<{ code: number; message: string; data: OrderItem[] }>("/api/v1/orders/my");
 
+export const getMyOrder = (orderNo: string) =>
+  koi.get<{ code: number; message: string; data: OrderItem }>(`/api/v1/orders/${encodeURIComponent(orderNo)}`);
+
 export const getApiKey = () => koi.get<{ code: number; message: string; data: ApiKeyView }>("/api/v1/api-key");
 
 export const createApiKey = () =>

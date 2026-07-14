@@ -169,6 +169,17 @@ func (s *Store) GetOrder(ctx context.Context, orderNo string) (Order, error) {
 	return item, err
 }
 
+func (s *Store) GetOrderForUser(ctx context.Context, orderNo string, userID uint64) (Order, error) {
+	item, err := s.GetOrder(ctx, orderNo)
+	if err != nil {
+		return Order{}, err
+	}
+	if item.UserID != userID {
+		return Order{}, ErrOrderNotFound
+	}
+	return item, nil
+}
+
 func (s *Store) ListOrders(ctx context.Context, userID uint64) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT o.id, o.order_no, o.user_id, o.package_id, p.name, o.provider, COALESCE(o.coupon_id, 0), o.coupon_code, o.amount_cents, o.payable_cents, o.discount_cents, o.refunded_cents, o.status, o.provider_trade_no, o.package_instance_id, o.expires_at, o.paid_at, o.closed_at, o.created_at FROM payment_orders o JOIN packages p ON p.id = o.package_id WHERE o.user_id = ? ORDER BY o.id DESC`, userID)
 	if err != nil {

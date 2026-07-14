@@ -46,6 +46,27 @@ func (h *Handler) MyOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": items})
 }
 
+func (h *Handler) MyOrder(c *gin.Context) {
+	user, ok := currentUser(c)
+	if !ok || h.service == nil {
+		return
+	}
+	item, err := h.service.Store().GetOrderForUser(c.Request.Context(), c.Param("orderNo"), user.ID)
+	if err != nil {
+		status := http.StatusInternalServerError
+		code := "INTERNAL_ERROR"
+		message := "failed to load order"
+		if errors.Is(err, ErrOrderNotFound) {
+			status = http.StatusNotFound
+			code = "ORDER_NOT_FOUND"
+			message = "order not found"
+		}
+		c.JSON(status, gin.H{"code": code, "message": message})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": item})
+}
+
 func (h *Handler) AdminOrders(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
